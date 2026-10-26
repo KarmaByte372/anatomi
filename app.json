@@ -45,6 +45,12 @@
       ]
     ],
     "scheme": "anatomi",
-    "description": "Ebelik, hemşirelik ve sağlık bilimleri öğrencileri için 3D anatomi, konu anlatımı, bilgi kartları ve testler."
+    "description": "Ebelik, hemşirelik ve sağlık bilimleri öğrencileri için 3D anatomi, konu anlatımı, bilgi kartları ve testler.",
+    "extra": {
+      "eas": {
+        "projectId": "21dd7007-78cd-4938-bc17-3398cb55c3a6"
+      }
+    },
+    "owner": "karmaozdemir"
   }
 }
