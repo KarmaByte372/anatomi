@@ -6,6 +6,7 @@ import * as THREE from 'three';
 
 import { anatomyStructures } from '@/data/anatomy3d';
 import type { AnatomyLayer } from '@/data/anatomyTypes';
+import { breadcrumb } from '@/lib/crashGuard';
 import { colors } from '@/theme';
 import { extractStructure, loadLayer, type LoadedLayer } from './loader';
 
@@ -168,6 +169,7 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
           loaded.current.set(layer, data);
           meshes.current.set(layer, mesh);
           scene.add(mesh);
+          breadcrumb(`${layer}: sahneye eklendi, çiziliyor`);
           newLayerDrawn.current = true;
           applyHighlights();
         })
@@ -368,6 +370,7 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
   }
 
   function setupGL(gl: ExpoWebGLRenderingContext) {
+    breadcrumb(`GL bağlamı alındı (${gl.drawingBufferWidth}x${gl.drawingBufferHeight})`);
     const width = gl.drawingBufferWidth;
     const heightPx = gl.drawingBufferHeight;
     // expo-gl gerçek bir canvas sağlamaz; three.js'in beklediği alanlarla sahte bir canvas veriyoruz
@@ -393,7 +396,9 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
       pixelStorei(pname, param as number);
     };
 
+    breadcrumb('three.js renderer kuruluyor');
     const renderer = createRenderer(canvas, gl);
+    breadcrumb('renderer kuruldu');
     renderer.setPixelRatio(1);
     renderer.setSize(width, heightPx, false);
     renderer.setClearColor(new THREE.Color('#F7EFEA'), 1);
@@ -420,6 +425,7 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
         callbacks.current.onError?.(e);
       }
     };
+    let firstFrame = true;
     const drawFrame = () => {
       frame.current = requestAnimationFrame(render);
       const c = current.current;
@@ -448,8 +454,13 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
       key.position.copy(cam.position).add(new THREE.Vector3(4, 6, 0));
       renderer.render(scene, cam);
       gl.endFrameEXP();
+      if (firstFrame) {
+        firstFrame = false;
+        breadcrumb('ilk kare çizildi (boş sahne)');
+      }
       if (newLayerDrawn.current) {
         newLayerDrawn.current = false;
+        breadcrumb('katman başarıyla çizildi');
         callbacks.current.onReady?.();
       }
 

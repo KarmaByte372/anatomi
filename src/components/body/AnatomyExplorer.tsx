@@ -9,7 +9,7 @@ import { Button, Card, Chip } from '@/components/ui';
 import { anatomyStructures, LAYERS, layerLabel, searchText, sideLabel, topicForStructure } from '@/data/anatomyInfo';
 import type { AnatomyLayer, AnatomyStructure } from '@/data/anatomyTypes';
 import { getTopic } from '@/data/topics';
-import { clear3DPending, did3DCrashLastTime, errorText, mark3DPending, recordError, sendErrorReport } from '@/lib/crashGuard';
+import { clear3DPending, deviceInfo, did3DCrashLastTime, errorText, getLastError, getLastStep, mark3DPending, recordError, sendErrorReport } from '@/lib/crashGuard';
 import { sample } from '@/lib/random';
 import { normalize } from '@/lib/text';
 import { colors } from '@/theme';
@@ -47,12 +47,19 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
   /** Çökme koruması: 'checking' → kontrol, 'run' → 3D açık, 'crashed' → geçen sefer kapandı, 'error' → hata yakalandı */
   const [guard, setGuard] = useState<'checking' | 'run' | 'crashed' | 'error'>('checking');
   const [glError, setGlError] = useState<string | null>(null);
+  /** Uyarı kartında gösterilen teknik bilgi (son adım, son hata) */
+  const [diag, setDiag] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     did3DCrashLastTime().then((crashed) => {
       if (!alive) return;
-      if (crashed) setGuard('crashed');
+      if (crashed) {
+        setGuard('crashed');
+        Promise.all([getLastStep(), getLastError()]).then(([step, err]) => {
+          if (alive) setDiag([`Cihaz: ${deviceInfo()}`, step ? `Son adım: ${step}` : null, err ? `Son hata: ${err.split('\n')[0]}` : null].filter(Boolean).join('\n'));
+        });
+      }
       else mark3DPending().then(() => alive && setGuard('run'));
     });
     return () => {
@@ -267,6 +274,7 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
                 ? 'Bu cihazda 3D görüntüleme sorun çıkarmış olabilir. Hata raporu göndererek düzeltmemize yardım edebilirsiniz. Bu arada "Vücut bölgeleri (2D)" sekmesini kullanabilirsiniz.'
                 : glError}
             </Text>
+            {diag ? <Text style={styles.diag}>{diag}</Text> : null}
             <View style={styles.crashActions}>
               <Button title="Hata raporu gönder" icon="mail-outline" variant="secondary" onPress={() => sendErrorReport(glError ?? '3D açılırken uygulama kapandı (yerel çökme)')} style={{ flex: 1 }} />
               <Button title="Yine de dene" icon="refresh" variant="ghost" onPress={retry3D} style={{ flex: 1 }} />
@@ -383,6 +391,7 @@ const styles = StyleSheet.create({
   crash: { alignItems: 'center', gap: 8, paddingVertical: 24 },
   crashTitle: { fontSize: 16, fontWeight: '800', color: colors.text, textAlign: 'center' },
   crashText: { fontSize: 13, color: colors.muted, textAlign: 'center', lineHeight: 19 },
+  diag: { fontSize: 11, color: colors.muted, alignSelf: 'stretch', backgroundColor: colors.bg, borderRadius: 8, padding: 8, fontFamily: 'monospace' },
   crashActions: { flexDirection: 'row', gap: 8, marginTop: 8, alignSelf: 'stretch' },
   gestureHint: { fontSize: 11, color: colors.muted, textAlign: 'center', marginTop: 6, marginBottom: 10 },
   info: { gap: 3 },

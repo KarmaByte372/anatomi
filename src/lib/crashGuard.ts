@@ -13,6 +13,19 @@ import { appVersion, CONTACT_EMAIL } from './contact';
  */
 const PENDING_KEY = 'anatomi-3d-pending';
 const LAST_ERROR_KEY = 'anatomi-last-error';
+const STEP_KEY = 'anatomi-3d-step';
+
+/**
+ * 3D başlatma adımlarını kaydeder. Yerel (native) çökmede JS hata yakalayamaz;
+ * bir sonraki açılışta son kaydedilen adım, çökmenin nerede olduğunu gösterir.
+ */
+export function breadcrumb(step: string) {
+  AsyncStorage.setItem(STEP_KEY, `${new Date().toISOString().slice(11, 19)} ${step}`).catch(() => {});
+}
+
+export async function getLastStep(): Promise<string | null> {
+  return AsyncStorage.getItem(STEP_KEY).catch(() => null);
+}
 
 export async function mark3DPending() {
   await AsyncStorage.setItem(PENDING_KEY, String(Date.now())).catch(() => {});
@@ -40,7 +53,7 @@ export function errorText(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
-function deviceInfo(): string {
+export function deviceInfo(): string {
   const c = Platform.constants as { Model?: string; Manufacturer?: string; Release?: string } | undefined;
   const model = [c?.Manufacturer, c?.Model].filter(Boolean).join(' ');
   return `${Platform.OS} ${c?.Release ?? Platform.Version}${model ? ` · ${model}` : ''}`;
@@ -49,6 +62,7 @@ function deviceInfo(): string {
 /** Hata raporunu e-posta taslağı olarak açar */
 export async function sendErrorReport(details: string) {
   const last = await getLastError();
+  const step = await getLastStep();
   const body = [
     'Uygulamada bir hata oluştu. (İsterseniz ne yaparken olduğunu buraya yazın.)',
     '',
@@ -57,6 +71,7 @@ export async function sendErrorReport(details: string) {
     '',
     'Hata:',
     details,
+    step ? `\n3D son adım: ${step}` : '',
     last && last !== details ? `\nSon kaydedilen hata:\n${last}` : '',
   ].join('\n');
   const url = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('[Anatomi Rehberi] Hata raporu')}&body=${encodeURIComponent(body)}`;

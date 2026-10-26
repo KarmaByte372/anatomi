@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import * as THREE from 'three';
 
 import { anatomyStructures } from '@/data/anatomy3d';
+import { breadcrumb } from '@/lib/crashGuard';
 import type { AnatomyLayer } from '@/data/anatomyTypes';
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -41,13 +42,15 @@ type Header = {
   structures: { s: number; vc: number; ic: number; i32: boolean }[];
 };
 
-async function readAsset(moduleId: number): Promise<ArrayBuffer> {
+async function readAsset(layer: AnatomyLayer, moduleId: number): Promise<ArrayBuffer> {
   const asset = Asset.fromModule(moduleId);
   if (Platform.OS === 'web') {
     const res = await fetch(asset.uri);
     return res.arrayBuffer();
   }
+  breadcrumb(`${layer}: dosya hazırlanıyor`);
   await asset.downloadAsync();
+  breadcrumb(`${layer}: dosya okunuyor`);
   return new File(asset.localUri ?? asset.uri).arrayBuffer();
 }
 
@@ -147,7 +150,12 @@ const cache = new Map<AnatomyLayer, Promise<LoadedLayer>>();
 export function loadLayer(layer: AnatomyLayer): Promise<LoadedLayer> {
   let p = cache.get(layer);
   if (!p) {
-    p = readAsset(LAYER_ASSETS[layer]).then((buf) => parseLayer(layer, buf));
+    p = readAsset(layer, LAYER_ASSETS[layer]).then((buf) => {
+      breadcrumb(`${layer}: çözülüyor (${Math.round(buf.byteLength / 1024)} KB)`);
+      const data = parseLayer(layer, buf);
+      breadcrumb(`${layer}: çözüldü`);
+      return data;
+    });
     p.catch(() => cache.delete(layer));
     cache.set(layer, p);
   }
