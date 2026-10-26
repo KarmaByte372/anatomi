@@ -2,6 +2,13 @@
 
 Uygulama Expo (SDK 58) ile yazıldı ve EAS ile bulutta derlenip mağazalara gönderilir; Mac veya Android Studio gerekmez.
 
+## Windows'ta tek tıkla derleme
+Proje kökündeki **`derle.bat`** dosyasına çift tıklayın. Dosya:
+1. Proje klasöründe değilse projeyi GitHub'dan `%USERPROFILE%\anatomi` klasörüne indirir (Git gerekir),
+2. Node.js'i kontrol eder, bağımlılıkları yükler,
+3. Expo hesabına giriş yapar ve projeyi ilk seferde EAS'e bağlar,
+4. Menüden seçilen derlemeyi başlatır (Android APK / Play Store, iPhone kaydı / test / TestFlight, ikisi birden). Mağaza derlemelerinden önce kod kontrollerini otomatik çalıştırır.
+
 ## 1. Hesaplar (bir kez)
 | Ne | Ücret | Not |
 |---|---|---|
