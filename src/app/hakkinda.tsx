@@ -1,7 +1,7 @@
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { Card, SectionTitle } from '@/components/ui';
-import { appVersion, CONTACT_EMAIL, CONTACT_PHONE } from '@/lib/contact';
+import { appVersion, CONTACT_EMAIL, CONTACT_PHONE, openUrl, REPO_URL } from '@/lib/contact';
 import { colors } from '@/theme';
 
 export default function AboutScreen() {
@@ -14,6 +14,17 @@ export default function AboutScreen() {
           anlatımları, klinik notlar, ezber ipuçları, aralıklı tekrarlı bilgi kartları, testler ve 3D anatomi modeli içerir.
         </Text>
         <Text style={styles.meta}>Sürüm {appVersion}</Text>
+      </Card>
+
+      <SectionTitle>Açık kaynak</SectionTitle>
+      <Card style={styles.card}>
+        <Text style={styles.p}>
+          Anatomi Rehberi açık kaynaklıdır. Kaynak kodu MIT, ders içeriği ve 3D veri CC BY 4.0 lisansıyla yayımlanır: kaynak göstermek koşuluyla
+          kullanabilir, değiştirebilir ve paylaşabilirsiniz. Katkılarınızı bekliyoruz.
+        </Text>
+        <Pressable onPress={() => openUrl(REPO_URL)} accessibilityRole="link">
+          <Text style={styles.contact}>{REPO_URL.replace('https://', '')}</Text>
+        </Pressable>
       </Card>
 
       <SectionTitle>Önemli uyarı</SectionTitle>

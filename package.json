@@ -40,5 +40,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint"
   },
-  "private": true
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karmabyte372/anatomi.git"
+  }
 }

@@ -7,6 +7,13 @@ const PHONE_DIAL = '+908503073587';
 
 export const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
+export const REPO_URL = 'https://github.com/karmabyte372/anatomi';
+export const ISSUE_URL = `${REPO_URL}/issues/new/choose`;
+
+export function openUrl(url: string) {
+  return Linking.openURL(url).catch(() => false);
+}
+
 export type EditRequest = {
   /** Talep türü (Hata / düzeltme, Eksik içerik, Öneri) */
   kind: string;

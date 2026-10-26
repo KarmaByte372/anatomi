@@ -62,4 +62,12 @@ node scripts/anatomy/build.mjs <klasör> mapping.json        # sadeleştirme + i
 
 Yeni bilgi eklemek için ilgili `src/data/topics/*.ts` dosyasındaki `cards` dizisine `{ q: 'Soru', a: 'Cevap' }` eklemek yeterli.
 
+## Açık kaynak ve lisans
+
+Anatomi Rehberi açık kaynaklıdır:
+- **Kaynak kod**: MIT
+- **Ders içeriği ve 3D veri** (`src/data/`, `assets/`): CC BY 4.0 — kaynak göstermek koşuluyla serbestçe kullanılabilir, değiştirilebilir, paylaşılabilir.
+
+Ayrıntılar [`LICENSE`](LICENSE) dosyasında. Katkı vermek için [`CONTRIBUTING.md`](CONTRIBUTING.md); öğretim üyeleri içerik düzeltmelerini GitHub'daki **İçerik düzeltme** formuyla veya duzenleme@digituva.com adresiyle iletebilir.
+
 > İçerik ders tekrarı içindir; sayısal değerler (pelvis çapları vb.) kaynaklara göre küçük farklar gösterebilir. Ders kitabın ve hocanın anlattıkları esastır.

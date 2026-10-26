@@ -1,0 +1,32 @@
+name: İçerik düzeltme
+description: Konu anlatımı, kart, test sorusu veya 3D model ismindeki bir hatayı bildirin
+title: "[İçerik] "
+labels: ["içerik"]
+body:
+  - type: input
+    id: yer
+    attributes:
+      label: İçeriğin yeri
+      description: Konu ve bölüm, kart veya 3D yapı adı
+      placeholder: Pelvis ve Pelvis Tabanı › Obstetrik çaplar
+    validations:
+      required: true
+  - type: textarea
+    id: mevcut
+    attributes:
+      label: Mevcut metin
+  - type: textarea
+    id: oneri
+    attributes:
+      label: Önerilen düzeltme
+    validations:
+      required: true
+  - type: input
+    id: kaynak
+    attributes:
+      label: Kaynak (isteğe bağlı)
+      placeholder: Kitap, baskı, sayfa
+  - type: input
+    id: kurum
+    attributes:
+      label: Unvan ve kurum (isteğe bağlı)

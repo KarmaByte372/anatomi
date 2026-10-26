@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-nat
 
 import { Button, Card, IconBadge, SectionTitle } from '@/components/ui';
 import { topics } from '@/data/topics';
-import { callSupport, CONTACT_EMAIL, CONTACT_PHONE, emailSupport } from '@/lib/contact';
+import { callSupport, CONTACT_EMAIL, CONTACT_PHONE, emailSupport, ISSUE_URL, openUrl } from '@/lib/contact';
 import { useSettings } from '@/lib/settings';
 import { colors } from '@/theme';
 
@@ -52,6 +52,10 @@ export default function ReviewerScreen() {
         <Pressable onPress={callSupport} style={styles.contact} accessibilityRole="link">
           <Ionicons name="call-outline" size={20} color={colors.primary} />
           <Text style={styles.contactText}>{CONTACT_PHONE}</Text>
+        </Pressable>
+        <Pressable onPress={() => openUrl(ISSUE_URL)} style={styles.contact} accessibilityRole="link">
+          <Ionicons name="logo-github" size={20} color={colors.primary} />
+          <Text style={styles.contactText}>GitHub üzerinden düzeltme bildir</Text>
         </Pressable>
         <Button title="Genel düzenleme talebi gönder" icon="create-outline" variant="secondary" onPress={() => router.push('/duzenleme')} />
       </Card>
