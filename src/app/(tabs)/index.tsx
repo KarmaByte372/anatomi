@@ -37,7 +37,7 @@ export default function HomeScreen() {
             icon="body"
             color={colors.primary}
             title="Vücut Haritası"
-            text="Bölgelere dokun, isimlerini öğren"
+            text="1.000+ yapılı 3D anatomi modeli"
             onPress={() => router.navigate('/vucut')}
           />
           <QuickAction

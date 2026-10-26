@@ -8,19 +8,8 @@ import { midwiferyTopicIds, topics } from '@/data/topics';
 import type { Topic } from '@/data/types';
 import { getDeck } from '@/lib/decks';
 import { useProgress } from '@/lib/progress';
+import { normalize } from '@/lib/text';
 import { colors } from '@/theme';
-
-/** Türkçe karakterleri sadeleştirerek arama (ı→i, ş→s ...) */
-function normalize(text: string): string {
-  return text
-    .toLocaleLowerCase('tr')
-    .replace(/ı/g, 'i')
-    .replace(/ş/g, 's')
-    .replace(/ğ/g, 'g')
-    .replace(/ü/g, 'u')
-    .replace(/ö/g, 'o')
-    .replace(/ç/g, 'c');
-}
 
 function matches(topic: Topic, query: string): boolean {
   if (!query) return true;
