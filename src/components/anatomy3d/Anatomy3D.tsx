@@ -40,6 +40,23 @@ type Props = {
   height?: number;
 };
 
+/**
+ * three.js, `context instanceof WebGLRenderingContext` ise WebGL 1 sanıp hata fırlatır.
+ * expo-gl ise telefonda WebGL2RenderingContext'i WebGLRenderingContext'ten türetir; bu yüzden
+ * gerçek bir WebGL 2 bağlamı bu kontrole takılır. Renderer kurulurken global sınıf geçici
+ * olarak gizlenir (kontrol yalnızca kurucuda yapılır).
+ */
+function createRenderer(canvas: HTMLCanvasElement, gl: ExpoWebGLRenderingContext): THREE.WebGLRenderer {
+  const g = globalThis as { WebGLRenderingContext?: unknown };
+  const saved = g.WebGLRenderingContext;
+  g.WebGLRenderingContext = undefined;
+  try {
+    return new THREE.WebGLRenderer({ canvas, context: gl as unknown as WebGL2RenderingContext, antialias: true });
+  } finally {
+    g.WebGLRenderingContext = saved;
+  }
+}
+
 function applyOpacity(meshes: Map<AnatomyLayer, THREE.Mesh>, ghost: string[], skinOpacity: number) {
   for (const [layer, mesh] of meshes) {
     const mat = mesh.material as THREE.MeshStandardMaterial;
@@ -376,7 +393,7 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
       pixelStorei(pname, param as number);
     };
 
-    const renderer = new THREE.WebGLRenderer({ canvas, context: gl as unknown as WebGL2RenderingContext, antialias: true });
+    const renderer = createRenderer(canvas, gl);
     renderer.setPixelRatio(1);
     renderer.setSize(width, heightPx, false);
     renderer.setClearColor(new THREE.Color('#F7EFEA'), 1);
