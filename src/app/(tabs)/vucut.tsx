@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BodyMap, regionIdsForView } from '@/components/BodyMap';
+import { Body3D } from '@/components/body3d/Body3D';
+import { MODEL_REGION_IDS } from '@/components/body3d/model';
 import { Button, Card, Chip } from '@/components/ui';
 import { getRegion } from '@/data/regions';
 import type { BodyView, Region } from '@/data/types';
@@ -11,53 +13,76 @@ import { sample } from '@/lib/random';
 import { colors } from '@/theme';
 
 type Mode = 'explore' | 'name' | 'find';
+type Display = '3d' | '2d';
 
 type Question = { target: Region; options: Region[] };
 
-function makeQuestion(view: BodyView, previous?: string): Question {
-  const ids = regionIdsForView(view).filter((id) => id !== previous);
-  const [targetId] = sample(ids, 1);
+function regionPool(display: Display, view: BodyView): string[] {
+  return display === '3d' ? MODEL_REGION_IDS : regionIdsForView(view);
+}
+
+function makeQuestion(pool: string[], previous?: string): Question {
+  const [targetId] = sample(
+    pool.filter((id) => id !== previous),
+    1,
+  );
   const target = getRegion(targetId)!;
   const others = sample(
-    regionIdsForView(view).filter((id) => id !== targetId),
+    pool.filter((id) => id !== targetId),
     3,
   ).map((id) => getRegion(id)!);
   return { target, options: sample([target, ...others], 4) };
 }
 
 export default function BodyScreen() {
+  const [display, setDisplay] = useState<Display>('3d');
   const [view, setView] = useState<BodyView>('front');
+  const [focus, setFocus] = useState<{ id: string; key: number } | null>(null);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
   const [mode, setMode] = useState<Mode>('explore');
   const [selected, setSelected] = useState<string | null>(null);
 
-  const [question, setQuestion] = useState<Question>(() => makeQuestion('front'));
+  const [question, setQuestion] = useState<Question>(() => makeQuestion(regionPool('3d', 'front')));
   const [answer, setAnswer] = useState<string | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
 
   const region = selected ? getRegion(selected) : undefined;
 
+  const focusOn = (id: string) => setFocus((f) => ({ id, key: (f?.key ?? 0) + 1 }));
+
   function changeView(v: BodyView) {
     setView(v);
     setSelected(null);
-    newQuestion(v);
+    newQuestion(mode, display, v);
+  }
+
+  function changeDisplay(d: Display) {
+    setDisplay(d);
+    setSelected(null);
+    newQuestion(mode, d, view);
   }
 
   function changeMode(m: Mode) {
     setMode(m);
     setSelected(null);
     setScore({ correct: 0, total: 0 });
-    newQuestion(view);
+    newQuestion(m, display, view);
   }
 
-  function newQuestion(v = view) {
-    setQuestion((q) => makeQuestion(v, q.target.id));
+  function newQuestion(m = mode, d = display, v = view) {
+    const q = makeQuestion(regionPool(d, v), question.target.id);
+    setQuestion(q);
     setAnswer(null);
+    // "Adını bil" modunda 3D kamera sorulan bölgeye döner
+    if (m === 'name' && d === '3d') focusOn(q.target.id);
   }
 
   function submit(regionId: string) {
     if (answer) return;
     setAnswer(regionId);
     setScore((s) => ({ correct: s.correct + (regionId === question.target.id ? 1 : 0), total: s.total + 1 }));
+    // Yanlış yeri seçtiyse doğru bölgeyi göster
+    if (mode === 'find' && regionId !== question.target.id && display === '3d') focusOn(question.target.id);
   }
 
   const highlights = useMemo<Record<string, string>>(() => {
@@ -78,10 +103,10 @@ export default function BodyScreen() {
     else if (mode === 'find') submit(id);
   };
 
-  const viewRegions = regionIdsForView(view).map((id) => getRegion(id)!);
+  const viewRegions = regionPool(display, view).map((id) => getRegion(id)!);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} scrollEnabled={scrollEnabled}>
       <View style={styles.row}>
         <Chip label="Keşfet" active={mode === 'explore'} onPress={() => changeMode('explore')} />
         <Chip label="Adını bil" active={mode === 'name'} onPress={() => changeMode('name')} />
@@ -89,12 +114,22 @@ export default function BodyScreen() {
       </View>
 
       <View style={styles.viewToggle}>
-        {(['front', 'back'] as const).map((v) => (
-          <Pressable key={v} onPress={() => changeView(v)} style={[styles.toggleBtn, view === v && styles.toggleBtnActive]}>
-            <Text style={[styles.toggleText, view === v && styles.toggleTextActive]}>{v === 'front' ? 'Ön yüz' : 'Arka yüz'}</Text>
+        {(['3d', '2d'] as const).map((d) => (
+          <Pressable key={d} onPress={() => changeDisplay(d)} style={[styles.toggleBtn, display === d && styles.toggleBtnActive]}>
+            <Text style={[styles.toggleText, display === d && styles.toggleTextActive]}>{d === '3d' ? '3D model' : '2D şema'}</Text>
           </Pressable>
         ))}
       </View>
+
+      {display === '2d' && (
+        <View style={styles.viewToggle}>
+          {(['front', 'back'] as const).map((v) => (
+            <Pressable key={v} onPress={() => changeView(v)} style={[styles.toggleBtn, view === v && styles.toggleBtnActive]}>
+              <Text style={[styles.toggleText, view === v && styles.toggleTextActive]}>{v === 'front' ? 'Ön yüz' : 'Arka yüz'}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {mode !== 'explore' && (
         <Card style={styles.prompt}>
@@ -113,9 +148,16 @@ export default function BodyScreen() {
         </Card>
       )}
 
-      <View style={styles.mapWrap}>
-        <BodyMap view={view} highlights={highlights} onSelect={onMapPress} />
-      </View>
+      {display === '3d' ? (
+        <View style={styles.viewer}>
+          <Body3D highlights={highlights} onSelect={onMapPress} focus={focus} onInteractingChange={(b) => setScrollEnabled(!b)} />
+          <Text style={styles.gestureHint}>Tek parmak: döndür / yukarı-aşağı kaydır · İki parmak: yakınlaştır · Dokun: bölge seç</Text>
+        </View>
+      ) : (
+        <View style={styles.mapWrap}>
+          <BodyMap view={view} highlights={highlights} onSelect={onMapPress} />
+        </View>
+      )}
 
       {mode === 'explore' &&
         (region ? (
@@ -123,13 +165,18 @@ export default function BodyScreen() {
             <Text style={styles.latin}>{region.latin}</Text>
             <Text style={styles.name}>{region.name}</Text>
             <Text style={styles.location}>{region.location}</Text>
-            <Button
-              title="Detayları gör"
-              icon="information-circle-outline"
-              variant="secondary"
-              onPress={() => router.push(`/bolge/${region.id}`)}
-              style={{ marginTop: 10 }}
-            />
+            <View style={styles.infoActions}>
+              {display === '3d' && (
+                <Button title="Yakınlaş" icon="locate-outline" variant="ghost" onPress={() => focusOn(region.id)} style={{ flex: 1 }} />
+              )}
+              <Button
+                title="Detaylar"
+                icon="information-circle-outline"
+                variant="secondary"
+                onPress={() => router.push(`/bolge/${region.id}`)}
+                style={{ flex: 1 }}
+              />
+            </View>
           </Card>
         ) : (
           <Card style={styles.info}>
@@ -168,9 +215,15 @@ export default function BodyScreen() {
 
       {mode === 'explore' && (
         <>
-          <Text style={styles.listTitle}>{view === 'front' ? 'ÖN YÜZ BÖLGELERİ' : 'ARKA YÜZ BÖLGELERİ'}</Text>
+          <Text style={styles.listTitle}>{display === '3d' ? 'TÜM BÖLGELER' : view === 'front' ? 'ÖN YÜZ BÖLGELERİ' : 'ARKA YÜZ BÖLGELERİ'}</Text>
           {viewRegions.map((r) => (
-            <Pressable key={r.id} onPress={() => setSelected(r.id)} style={[styles.listItem, selected === r.id && styles.listItemActive]}>
+            <Pressable
+              key={r.id}
+              onPress={() => {
+                setSelected(r.id);
+                if (display === '3d') focusOn(r.id);
+              }}
+              style={[styles.listItem, selected === r.id && styles.listItemActive]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.listLatin}>{r.latin}</Text>
                 <Text style={styles.listName}>{r.name}</Text>
@@ -206,6 +259,9 @@ const styles = StyleSheet.create({
   promptTarget: { fontSize: 20, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   promptSub: { fontSize: 13, color: colors.muted },
   mapWrap: { height: 460, marginVertical: 12, alignItems: 'center' },
+  viewer: { marginVertical: 12, gap: 6 },
+  gestureHint: { fontSize: 11, color: colors.muted, textAlign: 'center' },
+  infoActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
   info: { gap: 4 },
   latin: { fontSize: 20, fontWeight: '800', color: colors.primary },
   name: { fontSize: 16, fontWeight: '600', color: colors.text },

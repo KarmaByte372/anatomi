@@ -4,7 +4,7 @@ Ebelik öğrencileri için anatomi çalışma uygulaması (Expo / React Native).
 
 ## Neler var?
 
-- **Vücut haritası**: Ön ve arka yüzde ~50 bölgeye dokunarak Latince ve Türkçe adını, altındaki yapıları ve ebelik/klinik notlarını gör.
+- **3D vücut modeli**: Modeli parmakla döndür, iki parmakla yakınlaştır/uzaklaştır (webde fare tekerleği veya +/− düğmeleri), yukarı-aşağı kaydırarak baştan ayağa gez. ~50 bölgeye dokunarak Latince ve Türkçe adını, altındaki yapıları ve ebelik/klinik notlarını gör. "Yakınlaş" düğmesi kamerayı seçilen bölgeye çevirir. İstenirse eski 2D şemaya geçilebilir.
   - *Adını bil*: Vurgulanan bölgenin adını 4 seçenek arasından bul.
   - *Yerini bul*: Adı verilen bölgeye haritada dokun.
 - **Konular**: 16 ayrıntılı konu: terminoloji, iskelet, eklemler, kaslar, dolaşım, solunum, sindirim, üriner sistem, kadın üreme sistemi, pelvis ve pelvis tabanı, meme ve laktasyon, fetal dolaşım ve fetal kafatası, erkek üreme sistemi, sinir sistemi, endokrin sistem, duyu organları. Her konuda ebelik notları ve Türkçe ezber ipuçları var.
@@ -31,7 +31,7 @@ Kontroller: `npm run typecheck` ve `npm run lint`.
 src/app/            Expo Router ekranları (sekmeler, konu, bölge, kart çalışma, test)
 src/data/topics/    Konu içerikleri (bölümler, klinik notlar, ezber ipuçları, kartlar)
 src/data/regions.ts Vücut bölgeleri
-src/components/     Vücut haritası (SVG) ve ortak arayüz bileşenleri
+src/components/     3D model (three.js + expo-gl), 2D şema (SVG) ve ortak arayüz bileşenleri
 src/lib/            Desteler, aralıklı tekrar/ilerleme, test oluşturma
 ```
 
