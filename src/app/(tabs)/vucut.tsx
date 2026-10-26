@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { type ErrorBoundaryProps } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AnatomyExplorer } from '@/components/body/AnatomyExplorer';
 import { Regions2D } from '@/components/body/Regions2D';
+import { Button, Card } from '@/components/ui';
+import { errorText, recordError, sendErrorReport } from '@/lib/crashGuard';
 import { colors } from '@/theme';
 
 type Section = '3d' | '2d';
@@ -26,8 +29,27 @@ export default function BodyScreen() {
   );
 }
 
+/** Vücut ekranındaki render hataları uygulamayı kapatmasın; hata gösterilir ve raporlanabilir */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  useEffect(() => {
+    recordError(error, 'vucut');
+  }, [error]);
+  return (
+    <View style={styles.container}>
+      <Card style={{ gap: 10 }}>
+        <Text style={styles.errorTitle}>Vücut haritası açılırken bir hata oluştu</Text>
+        <Text style={styles.errorText}>{errorText(error)}</Text>
+        <Button title="Hata raporu gönder" icon="mail-outline" variant="secondary" onPress={() => sendErrorReport(`${errorText(error)}\n${error.stack ?? ''}`)} />
+        <Button title="Tekrar dene" icon="refresh" variant="ghost" onPress={retry} />
+      </Card>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 40 },
+  errorTitle: { fontSize: 16, fontWeight: '800', color: colors.text },
+  errorText: { fontSize: 13, color: colors.muted, lineHeight: 19 },
   toggle: { flexDirection: 'row', backgroundColor: colors.border, borderRadius: 12, padding: 3 },
   toggleBtn: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: colors.card },

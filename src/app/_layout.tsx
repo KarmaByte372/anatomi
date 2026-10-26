@@ -1,9 +1,13 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
+import { installGlobalErrorRecorder } from '@/lib/crashGuard';
 import { ProgressProvider } from '@/lib/progress';
 import { SettingsProvider } from '@/lib/settings';
 import { colors } from '@/theme';
+
+// Uygulamayı kapatan JS hataları, kapanmadan önce hata raporu için kaydedilir
+installGlobalErrorRecorder();
 
 export default function RootLayout() {
   return (

@@ -33,6 +33,10 @@ type Props = {
   /** key değiştiğinde kamera bu yapıya döner */
   focus?: { id: number; key: number } | null;
   onInteractingChange?: (interacting: boolean) => void;
+  /** Yeni yüklenen katman ilk kez başarıyla çizildiğinde */
+  onReady?: () => void;
+  /** GL başlatma veya çizim hatasında (bileşen kapanmaz, hata bildirilir) */
+  onError?: (error: unknown) => void;
   height?: number;
 };
 
@@ -64,15 +68,17 @@ function facingLabel(yaw: number): string {
   return 'Sağ yan';
 }
 
-export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null, highlights = {}, onSelect, focus, onInteractingChange, height = 480 }: Props) {
+export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null, highlights = {}, onSelect, focus, onInteractingChange, onReady, onError, height = 480 }: Props) {
   const size = useRef({ width: 1, height: 1 });
   const camera = useRef(new THREE.PerspectiveCamera(32, 1, 0.05, 200));
   const current = useRef<CameraState>(home());
   const goal = useRef<CameraState>(home());
   const dirty = useRef(true);
-  const callbacks = useRef({ onSelect, onInteractingChange });
+  /** Yeni bir katman sahneye eklendi; çizilince onReady bildirilir */
+  const newLayerDrawn = useRef(false);
+  const callbacks = useRef({ onSelect, onInteractingChange, onReady, onError });
   useEffect(() => {
-    callbacks.current = { onSelect, onInteractingChange };
+    callbacks.current = { onSelect, onInteractingChange, onReady, onError };
   });
 
   // Sahne nesneleri (GL bağlamından bağımsız oluşturulur)
@@ -119,7 +125,11 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
     }
     dirty.current = true;
     const missing = layers.filter((l) => !meshes.current.has(l));
-    if (missing.length === 0) return;
+    if (missing.length === 0) {
+      // Katmanlar zaten yüklü: bir sonraki kare çizilince hazır say
+      newLayerDrawn.current = true;
+      return;
+    }
     setLoading((s) => [...new Set([...s, ...missing])]);
     for (const layer of missing) {
       loadLayer(layer)
@@ -141,9 +151,13 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
           loaded.current.set(layer, data);
           meshes.current.set(layer, mesh);
           scene.add(mesh);
+          newLayerDrawn.current = true;
           applyHighlights();
         })
-        .catch((e: unknown) => setError(String(e)))
+        .catch((e: unknown) => {
+          setError(String(e));
+          callbacks.current.onError?.(e);
+        })
         .finally(() => !cancelled && setLoading((s) => s.filter((l) => l !== layer)));
     }
     return () => {
@@ -329,6 +343,14 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
   );
 
   function onContextCreate(gl: ExpoWebGLRenderingContext) {
+    try {
+      setupGL(gl);
+    } catch (e) {
+      callbacks.current.onError?.(e);
+    }
+  }
+
+  function setupGL(gl: ExpoWebGLRenderingContext) {
     const width = gl.drawingBufferWidth;
     const heightPx = gl.drawingBufferHeight;
     // expo-gl gerçek bir canvas sağlamaz; three.js'in beklediği alanlarla sahte bir canvas veriyoruz
@@ -344,6 +366,7 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
             removeEventListener: () => {},
             clientWidth: width,
             clientHeight: heightPx,
+            getContext: () => gl,
           } as unknown as HTMLCanvasElement);
 
     // expo-gl'in desteklemediği pixelStorei parametrelerinde uyarıları sustur
@@ -371,6 +394,16 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
 
     let lastFacing = '';
     const render = () => {
+      try {
+        drawFrame();
+      } catch (e) {
+        // Çizim hatasında döngüyü durdur ve bildir; uygulama kapanmasın
+        if (frame.current !== null) cancelAnimationFrame(frame.current);
+        frame.current = null;
+        callbacks.current.onError?.(e);
+      }
+    };
+    const drawFrame = () => {
       frame.current = requestAnimationFrame(render);
       const c = current.current;
       const t = goal.current;
@@ -398,6 +431,10 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
       key.position.copy(cam.position).add(new THREE.Vector3(4, 6, 0));
       renderer.render(scene, cam);
       gl.endFrameEXP();
+      if (newLayerDrawn.current) {
+        newLayerDrawn.current = false;
+        callbacks.current.onReady?.();
+      }
 
       const f = facingLabel(c.yaw);
       if (f !== lastFacing) {

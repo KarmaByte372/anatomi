@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Anatomy3D } from '@/components/anatomy3d/Anatomy3D';
@@ -9,6 +9,7 @@ import { Button, Card, Chip } from '@/components/ui';
 import { anatomyStructures, LAYERS, layerLabel, searchText, sideLabel, topicForStructure } from '@/data/anatomyInfo';
 import type { AnatomyLayer, AnatomyStructure } from '@/data/anatomyTypes';
 import { getTopic } from '@/data/topics';
+import { clear3DPending, did3DCrashLastTime, errorText, mark3DPending, recordError, sendErrorReport } from '@/lib/crashGuard';
 import { sample } from '@/lib/random';
 import { normalize } from '@/lib/text';
 import { colors } from '@/theme';
@@ -43,6 +44,33 @@ function makeQuestion(layers: AnatomyLayer[], previous?: number): Question | nul
 /** Gerçek anatomik veriden (BodyParts3D) 3D model: katmanlar, arama, keşfet ve ezber oyunları */
 export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: (b: boolean) => void }) {
   const [layers, setLayers] = useState<AnatomyLayer[]>(['iskelet', 'kas']);
+  /** Çökme koruması: 'checking' → kontrol, 'run' → 3D açık, 'crashed' → geçen sefer kapandı, 'error' → hata yakalandı */
+  const [guard, setGuard] = useState<'checking' | 'run' | 'crashed' | 'error'>('checking');
+  const [glError, setGlError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    did3DCrashLastTime().then((crashed) => {
+      if (!alive) return;
+      if (crashed) setGuard('crashed');
+      else mark3DPending().then(() => alive && setGuard('run'));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  function retry3D() {
+    setGlError(null);
+    mark3DPending().then(() => setGuard('run'));
+  }
+
+  function on3DError(e: unknown) {
+    recordError(e, '3D');
+    clear3DPending();
+    setGlError(errorText(e));
+    setGuard('error');
+  }
   const [skinSolid, setSkinSolid] = useState(false);
   const [mode, setMode] = useState<Mode>('explore');
   const [selected, setSelected] = useState<number | null>(null);
@@ -63,6 +91,8 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
 
   function toggleLayer(l: AnatomyLayer) {
     const next = layers.includes(l) ? layers.filter((x) => x !== l) : [...layers, l];
+    // Yeni katman yüklenirken kapanırsa bir sonraki açılışta anlaşılsın
+    if (!layers.includes(l)) mark3DPending();
     setLayers(next);
     setXray(null);
     if (mode !== 'explore') newQuestion(mode, next);
@@ -102,7 +132,10 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
   }
 
   function pickFromSearch(s: AnatomyStructure) {
-    if (!layers.includes(s.layer)) setLayers((ls) => [...ls, s.layer]);
+    if (!layers.includes(s.layer)) {
+      mark3DPending();
+      setLayers((ls) => [...ls, s.layer]);
+    }
     setMode('explore');
     setSelected(s.id);
     focusOn(s.id);
@@ -211,17 +244,35 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
       )}
 
       <View style={{ marginTop: 12 }}>
-        <Anatomy3D
-          height={540}
-          layers={layers}
-          skinOpacity={skinSolid ? 1 : 0.3}
-          ghost={xray !== null ? layers : []}
-          isolate={xray !== null ? { id: xray, color: highlights[xray] ?? colors.highlight } : null}
-          highlights={highlights}
-          onSelect={select}
-          focus={focus}
-          onInteractingChange={onInteractingChange}
-        />
+        {guard === 'run' ? (
+          <Anatomy3D
+            height={540}
+            layers={layers}
+            skinOpacity={skinSolid ? 1 : 0.3}
+            ghost={xray !== null ? layers : []}
+            isolate={xray !== null ? { id: xray, color: highlights[xray] ?? colors.highlight } : null}
+            highlights={highlights}
+            onSelect={select}
+            focus={focus}
+            onInteractingChange={onInteractingChange}
+            onReady={clear3DPending}
+            onError={on3DError}
+          />
+        ) : guard === 'checking' ? null : (
+          <Card style={styles.crash}>
+            <Ionicons name="warning-outline" size={28} color={colors.warning} />
+            <Text style={styles.crashTitle}>{guard === 'crashed' ? '3D model geçen sefer açılırken uygulama kapandı' : '3D model açılamadı'}</Text>
+            <Text style={styles.crashText}>
+              {guard === 'crashed'
+                ? 'Bu cihazda 3D görüntüleme sorun çıkarmış olabilir. Hata raporu göndererek düzeltmemize yardım edebilirsiniz. Bu arada "Vücut bölgeleri (2D)" sekmesini kullanabilirsiniz.'
+                : glError}
+            </Text>
+            <View style={styles.crashActions}>
+              <Button title="Hata raporu gönder" icon="mail-outline" variant="secondary" onPress={() => sendErrorReport(glError ?? '3D açılırken uygulama kapandı (yerel çökme)')} style={{ flex: 1 }} />
+              <Button title="Yine de dene" icon="refresh" variant="ghost" onPress={retry3D} style={{ flex: 1 }} />
+            </View>
+          </Card>
+        )}
         <Text style={styles.gestureHint}>Tek parmak: döndür · İki parmak: yakınlaştır ve kaydır · Dokun: yapıyı seç</Text>
       </View>
 
@@ -329,6 +380,10 @@ const styles = StyleSheet.create({
   promptText: { fontSize: 15, color: colors.text, fontWeight: '600', textAlign: 'center' },
   promptTarget: { fontSize: 20, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   promptSub: { fontSize: 13, color: colors.muted },
+  crash: { alignItems: 'center', gap: 8, paddingVertical: 24 },
+  crashTitle: { fontSize: 16, fontWeight: '800', color: colors.text, textAlign: 'center' },
+  crashText: { fontSize: 13, color: colors.muted, textAlign: 'center', lineHeight: 19 },
+  crashActions: { flexDirection: 'row', gap: 8, marginTop: 8, alignSelf: 'stretch' },
   gestureHint: { fontSize: 11, color: colors.muted, textAlign: 'center', marginTop: 6, marginBottom: 10 },
   info: { gap: 3 },
   latin: { fontSize: 20, fontWeight: '800', color: colors.primary },
