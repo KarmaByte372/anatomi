@@ -4,11 +4,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card, IconBadge, ProgressBar, SectionTitle } from '@/components/ui';
-import { midwiferyTopicIds, topics } from '@/data/topics';
+import { topics } from '@/data/topics';
 import type { IconName } from '@/data/types';
 import { allCards, MIXED_DECK_ID, WEAK_DECK_ID } from '@/lib/decks';
 import { useProgress } from '@/lib/progress';
 import { dailyIndex } from '@/lib/random';
+import { DEPARTMENTS, PRIORITY_TOPICS, useSettings } from '@/lib/settings';
 import { colors, radius } from '@/theme';
 
 const allMnemonics = topics.flatMap((t) => (t.mnemonics ?? []).map((m) => ({ ...m, topic: t })));
@@ -16,12 +17,20 @@ const allMnemonics = topics.flatMap((t) => (t.mnemonics ?? []).map((m) => ({ ...
 export default function HomeScreen() {
   const { learnedCount, weakCards, streak } = useProgress();
   const tip = allMnemonics[dailyIndex(allMnemonics.length)];
-  const midwifery = topics.filter((t) => midwiferyTopicIds.includes(t.id));
+  const { department } = useSettings();
+  const dep = department ?? 'ebelik';
+  const priority = PRIORITY_TOPICS[dep].map((id) => topics.find((t) => t.id === id)!);
+  const depLabel = DEPARTMENTS.find((d) => d.id === dep)!.label;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.hello}>Merhaba 👋</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.hello}>Merhaba 👋</Text>
+          <Pressable onPress={() => router.push('/ayarlar')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Ayarlar">
+            <Ionicons name="settings-outline" size={24} color={colors.text} />
+          </Pressable>
+        </View>
         <Text style={styles.subtitle}>Bugün anatomiden ne çalışalım?</Text>
 
         <View style={styles.statsRow}>
@@ -80,8 +89,8 @@ export default function HomeScreen() {
           </>
         )}
 
-        <SectionTitle>Ebelik için öncelikli konular</SectionTitle>
-        {midwifery.map((t) => (
+        <SectionTitle>{`${depLabel} için öncelikli konular`}</SectionTitle>
+        {priority.map((t) => (
           <Pressable key={t.id} onPress={() => router.push(`/konu/${t.id}`)} style={({ pressed }) => [pressed && { opacity: 0.85 }]}>
             <Card style={styles.topicRow}>
               <IconBadge icon={t.icon} color={t.color} />
@@ -95,6 +104,16 @@ export default function HomeScreen() {
             </Card>
           </Pressable>
         ))}
+        <Pressable onPress={() => router.push('/akademisyen')} style={({ pressed }) => pressed && { opacity: 0.85 }}>
+          <Card style={styles.academic}>
+            <Ionicons name="school-outline" size={22} color={colors.accent} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.academicTitle}>Öğretim üyesi misiniz?</Text>
+              <Text style={styles.academicText}>İçeriği inceleyin, düzenleme talep edin.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Card>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -125,6 +144,10 @@ function QuickAction(props: { icon: IconName; color: string; title: string; text
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   container: { padding: 20, paddingBottom: 40 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  academic: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, backgroundColor: colors.accentSoft },
+  academicTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  academicText: { fontSize: 12, color: colors.muted, marginTop: 2 },
   hello: { fontSize: 28, fontWeight: '800', color: colors.text },
   subtitle: { fontSize: 15, color: colors.muted, marginTop: 4, marginBottom: 16 },
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },

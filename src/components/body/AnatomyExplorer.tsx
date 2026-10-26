@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Anatomy3D } from '@/components/anatomy3d/Anatomy3D';
+import { EditRequestButton } from '@/components/EditRequestButton';
 import { Button, Card, Chip } from '@/components/ui';
 import { anatomyStructures, LAYERS, layerLabel, searchText, sideLabel, topicForStructure } from '@/data/anatomyInfo';
 import type { AnatomyLayer, AnatomyStructure } from '@/data/anatomyTypes';
@@ -230,6 +231,7 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
             <Text style={styles.latin}>{structure.la}</Text>
             <Text style={styles.name}>{fullName(structure)}</Text>
             <Text style={styles.meta}>{layerLabel(structure.layer)}</Text>
+            <EditRequestButton always label="İsimde hata bildir" location={`3D model › ${layerLabel(structure.layer)}`} excerpt={`${structure.la} — ${fullName(structure)}`} />
             {xray && (
               <Pressable onPress={() => setXray(null)} style={styles.xray}>
                 <Ionicons name="eye-off-outline" size={14} color={colors.accent} />

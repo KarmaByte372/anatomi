@@ -1,6 +1,6 @@
 # Anatomi Rehberi
 
-Ebelik öğrencileri için anatomi çalışma uygulaması (Expo / React Native).
+Ebelik, hemşirelik ve diğer sağlık bölümlerindeki öğrenciler için anatomi çalışma uygulaması (Expo / React Native). Hesap veya sunucu gerektirmez; tüm ilerleme cihazda saklanır.
 
 ## Neler var?
 
@@ -14,7 +14,9 @@ Ebelik öğrencileri için anatomi çalışma uygulaması (Expo / React Native).
 - **Konular**: 16 ayrıntılı konu: terminoloji, iskelet, eklemler, kaslar, dolaşım, solunum, sindirim, üriner sistem, kadın üreme sistemi, pelvis ve pelvis tabanı, meme ve laktasyon, fetal dolaşım ve fetal kafatası, erkek üreme sistemi, sinir sistemi, endokrin sistem, duyu organları. Her konuda ebelik notları ve Türkçe ezber ipuçları var.
 - **Kartlar**: 300'den fazla bilgi kartı, aralıklı tekrar (Leitner kutuları) ile çalışılır. "Zayıf kartlar" destesi bilemediklerini tekrar ettirir.
 - **Test**: Konu testleri ve karışık deneme sınavı; yanlışları sonda gösterir ve en iyi skoru saklar.
-- Ana sayfada günlük seri, ilerleme ve "günün ezber ipucu".
+- Ana sayfada günlük seri, ilerleme, "günün ezber ipucu" ve seçilen bölüme göre öncelikli konular (ilk açılışta bölüm seçilir).
+- **Öğretim üyeleri için**: Akademisyen paneli ve akademisyen modu. Açıkken her konu bölümü, klinik not, ezber ipucu ve bilgi kartının yanında "Düzenleme talep et" görünür. Talep, içeriğin yeri ve mevcut metni eklenmiş olarak duzenleme@digituva.com adresine e-posta olarak hazırlanır; telefon: +90 850 307 3587. Öğrenciler de kart, test sorusu ve 3D isimlerinde "Hata bildir" diyebilir.
+- Ayarlar: bölüm değiştirme, ilerlemeyi sıfırlama, iletişim, hakkında/lisanslar, gizlilik politikası.
 
 İlerleme cihazda (AsyncStorage) saklanır, internet gerekmez.
 
@@ -27,7 +29,13 @@ npx expo start
 
 Telefonda **Expo Go** uygulamasıyla QR kodu okut. Web'de denemek için `npx expo start --web`.
 
-Kontroller: `npm run typecheck` ve `npm run lint`.
+Kontroller: `npm run typecheck`, `npm run lint` ve `npx expo-doctor`.
+
+## Mağazaya yayın
+- Adım adım rehber: [`docs/yayin-rehberi.md`](docs/yayin-rehberi.md) (EAS ile App Store + Google Play)
+- Mağaza açıklamaları, anahtar kelimeler, veri güvenliği yanıtları: [`docs/magaza-metinleri.md`](docs/magaza-metinleri.md)
+- Gizlilik politikası (web'de yayımlanmalı): [`docs/gizlilik-politikasi.md`](docs/gizlilik-politikasi.md)
+- Paket kimliği: `com.digituva.anatomi` (iOS ve Android)
 
 ## Yapı
 

@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import type { ComponentProps } from 'react';
 import type { ColorValue } from 'react-native';
 
+import { useSettings } from '@/lib/settings';
 import { colors } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -15,6 +17,9 @@ const tab = (title: string, icon: IconName, activeIcon: IconName) => ({
 });
 
 export default function TabsLayout() {
+  const { department } = useSettings();
+  // İlk açılışta bölüm seçimi
+  if (!department) return <Redirect href="/hosgeldin" />;
   return (
     <Tabs
       screenOptions={{

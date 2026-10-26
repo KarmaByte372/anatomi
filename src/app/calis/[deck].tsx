@@ -3,6 +3,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { EditRequestButton } from '@/components/EditRequestButton';
 import { Button, Card, ProgressBar } from '@/components/ui';
 import { deckTitle, getDeck, type DeckCard } from '@/lib/decks';
 import { useProgress } from '@/lib/progress';
@@ -89,6 +90,9 @@ export default function StudyScreen() {
           {revealed ? (
             <View style={[styles.answerBox, { backgroundColor: color + '14' }]}>
               <Text style={[styles.answer, { color }]}>{card.a}</Text>
+              <View style={{ alignItems: 'center', marginTop: 8 }}>
+                <EditRequestButton always label="Kartta hata bildir" location={`Kart: ${getDeck(card.deckId)?.title ?? ''}`} excerpt={`${card.q} → ${card.a}`} />
+              </View>
             </View>
           ) : (
             <View style={styles.tapHint}>

@@ -3,6 +3,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { EditRequestButton } from '@/components/EditRequestButton';
 import { Button, Card, ProgressBar } from '@/components/ui';
 import { deckTitle, getDeck } from '@/lib/decks';
 import { useProgress } from '@/lib/progress';
@@ -129,6 +130,15 @@ export default function QuizScreen() {
           </Pressable>
         );
       })}
+
+      {picked && (
+        <EditRequestButton
+          always
+          label="Soruda hata bildir"
+          location={`Test sorusu: ${getDeck(q.card.deckId)?.title ?? ''}`}
+          excerpt={`${q.card.q} → ${q.card.a}`}
+        />
+      )}
 
       {picked && (
         <Button

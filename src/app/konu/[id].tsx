@@ -3,14 +3,17 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { EditRequestButton } from '@/components/EditRequestButton';
 import { Button, Card, IconBadge } from '@/components/ui';
 import { getTopic } from '@/data/topics';
 import type { Section } from '@/data/types';
+import { useSettings } from '@/lib/settings';
 import { colors, radius } from '@/theme';
 
 export default function TopicScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const topic = getTopic(id);
+  const { reviewerMode } = useSettings();
 
   if (!topic) {
     return (
@@ -48,17 +51,20 @@ export default function TopicScreen() {
         </View>
 
         {topic.sections.map((s, i) => (
-          <SectionBlock key={s.title} section={s} color={topic.color} initiallyOpen={i < 2} />
+          <SectionBlock key={s.title} section={s} color={topic.color} initiallyOpen={reviewerMode || i < 2} topicTitle={topic.title} />
         ))}
 
         {topic.clinical && topic.clinical.length > 0 && (
           <Card style={[styles.box, { borderLeftColor: colors.accent }]}>
             <View style={styles.boxHeader}>
               <Ionicons name="medkit" size={18} color={colors.accent} />
-              <Text style={[styles.boxTitle, { color: colors.accent }]}>Ebelik / klinik notlar</Text>
+              <Text style={[styles.boxTitle, { color: colors.accent }]}>Klinik notlar</Text>
             </View>
             {topic.clinical.map((c) => (
-              <Bullet key={c} text={c} color={colors.accent} />
+              <View key={c}>
+                <Bullet text={c} color={colors.accent} />
+                <EditRequestButton location={`${topic.title} › Klinik notlar`} excerpt={c} />
+              </View>
             ))}
           </Card>
         )}
@@ -74,16 +80,38 @@ export default function TopicScreen() {
                 <Text style={styles.mnemonicTitle}>{m.title}</Text>
                 <Text style={styles.mnemonicHook}>“{m.hook}”</Text>
                 <Text style={styles.mnemonicExplanation}>{m.explanation}</Text>
+                <EditRequestButton location={`${topic.title} › Ezber ipucu: ${m.title}`} excerpt={`${m.hook} — ${m.explanation}`} />
               </View>
             ))}
           </Card>
         )}
+        {reviewerMode && (
+          <Card style={[styles.box, { borderLeftColor: topic.color }]}>
+            <View style={styles.boxHeader}>
+              <Ionicons name="albums-outline" size={18} color={topic.color} />
+              <Text style={[styles.boxTitle, { color: topic.color }]}>Bilgi kartları ({topic.cards.length})</Text>
+            </View>
+            {topic.cards.map((c, i) => (
+              <View key={c.q} style={styles.reviewCard}>
+                <Text style={styles.reviewQ}>
+                  {i + 1}. {c.q}
+                </Text>
+                <Text style={styles.reviewA}>{c.a}</Text>
+                <EditRequestButton location={`${topic.title} › Kart ${i + 1}`} excerpt={`${c.q} → ${c.a}`} />
+              </View>
+            ))}
+          </Card>
+        )}
+
+        <View style={styles.footer}>
+          <EditRequestButton always location={topic.title} label="İçerikte hata mı gördün? Bildir" />
+        </View>
       </ScrollView>
     </>
   );
 }
 
-function SectionBlock({ section, color, initiallyOpen }: { section: Section; color: string; initiallyOpen: boolean }) {
+function SectionBlock({ section, color, initiallyOpen, topicTitle }: { section: Section; color: string; initiallyOpen: boolean; topicTitle: string }) {
   const [open, setOpen] = useState(initiallyOpen);
   return (
     <Card style={styles.section}>
@@ -102,6 +130,7 @@ function SectionBlock({ section, color, initiallyOpen }: { section: Section; col
           {section.bullets?.map((b) => (
             <Bullet key={b} text={b} color={color} />
           ))}
+          <EditRequestButton location={`${topicTitle} › ${section.title}`} />
         </View>
       )}
     </Card>
@@ -149,6 +178,10 @@ const styles = StyleSheet.create({
   box: { gap: 10, borderLeftWidth: 4 },
   boxHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   boxTitle: { fontSize: 15, fontWeight: '800' },
+  reviewCard: { gap: 2, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  reviewQ: { fontWeight: '700', color: colors.text, fontSize: 14 },
+  reviewA: { color: colors.muted, fontSize: 14 },
+  footer: { alignItems: 'center', marginTop: 4 },
   mnemonic: { gap: 3, paddingTop: 4 },
   mnemonicTitle: { fontWeight: '700', color: colors.text },
   mnemonicHook: { fontStyle: 'italic', color: colors.text, fontSize: 15, lineHeight: 21 },

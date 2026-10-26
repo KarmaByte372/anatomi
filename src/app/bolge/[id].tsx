@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BodyMap } from '@/components/BodyMap';
+import { EditRequestButton } from '@/components/EditRequestButton';
 import { Card } from '@/components/ui';
 import { getRegion } from '@/data/regions';
 import { colors } from '@/theme';
@@ -53,11 +54,12 @@ export default function RegionScreen() {
           <Card style={[styles.card, styles.clinical]}>
             <View style={styles.clinicalHeader}>
               <Ionicons name="medkit" size={18} color={colors.accent} />
-              <Text style={[styles.cardTitle, { color: colors.accent }]}>Ebelik / klinik not</Text>
+              <Text style={[styles.cardTitle, { color: colors.accent }]}>Klinik not</Text>
             </View>
             <Text style={styles.text}>{region.clinical}</Text>
           </Card>
         )}
+        <EditRequestButton always label="Bu bölgede hata bildir" location={`Vücut bölgesi: ${region.latin}`} excerpt={`${region.latin} — ${region.name}`} />
       </ScrollView>
     </>
   );

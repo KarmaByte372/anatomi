@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Card, IconBadge, ProgressBar } from '@/components/ui';
-import { midwiferyTopicIds, topics } from '@/data/topics';
+import { topics } from '@/data/topics';
 import type { Topic } from '@/data/types';
 import { getDeck } from '@/lib/decks';
 import { useProgress } from '@/lib/progress';
+import { DEPARTMENTS, PRIORITY_TOPICS, useSettings } from '@/lib/settings';
 import { normalize } from '@/lib/text';
 import { colors } from '@/theme';
 
@@ -26,6 +27,9 @@ function matches(topic: Topic, query: string): boolean {
 export default function TopicsScreen() {
   const [query, setQuery] = useState('');
   const { learnedRatio } = useProgress();
+  const { department } = useSettings();
+  const dep = department ?? 'ebelik';
+  const badge = DEPARTMENTS.find((d) => d.id === dep)!.label.split(' ')[0].toLocaleUpperCase('tr');
   const data = topics.filter((t) => matches(t, query.trim()));
 
   return (
@@ -63,9 +67,9 @@ export default function TopicsScreen() {
                 <View style={{ flex: 1 }}>
                   <View style={styles.titleRow}>
                     <Text style={styles.title}>{item.title}</Text>
-                    {midwiferyTopicIds.includes(item.id) && (
+                    {PRIORITY_TOPICS[dep].includes(item.id) && (
                       <View style={styles.badge}>
-                        <Text style={styles.badgeText}>EBELİK</Text>
+                        <Text style={styles.badgeText}>{badge}</Text>
                       </View>
                     )}
                   </View>

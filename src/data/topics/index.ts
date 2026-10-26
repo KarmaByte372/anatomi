@@ -25,9 +25,6 @@ export const topics: Topic[] = [
   duyu,
 ];
 
-/** Ebelik öğrencisi için öncelikli konular */
-export const midwiferyTopicIds = ['pelvis', 'kadin-ureme', 'meme', 'fetal'];
-
 export function getTopic(id: string): Topic | undefined {
   return topics.find((t) => t.id === id);
 }
