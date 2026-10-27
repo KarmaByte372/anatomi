@@ -61,6 +61,9 @@ anatomi,ebelik,hemşirelik,3d anatomi,kas,iskelet,tıp,sağlık,ders,flashcard,t
 - **Data Not Collected** (Veri toplanmıyor)
 
 ## Ekran görüntüleri
-Her iki mağaza için en az şu ekranlar önerilir: Ana sayfa, 3D model (kas + iskelet), röntgen modunda kalp, konu anlatımı (pelvis), bilgi kartı, test sonucu.
-- iPhone 6,9" (1320 × 2868) ve iPad 13" (2064 × 2752) – App Store
-- Telefon (en az 1080 × 1920) – Google Play
+Hazır görüntüler `docs/ekran-goruntuleri/` klasöründedir (ana sayfa, 3D model, röntgen modunda os coxae, konu anlatımı, bilgi kartı, test sorusu, test sonucu):
+- `iphone/` 1320 × 2868 – App Store iPhone 6,9"
+- `ipad/` 2064 × 2752 – App Store iPad 13"
+- `android/` 1080 × 2160 – Google Play telefon
+
+Yeniden üretmek için: `npx expo start --web` çalışırken `node scripts/store-screenshots.js` (Playwright gerekir).
