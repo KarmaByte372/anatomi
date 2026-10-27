@@ -42,6 +42,14 @@
           "resizeMode": "contain",
           "backgroundColor": "#FFF8FA"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraProguardRules": "# expo-gl GLView, ExpoView olmadığı için expo-modules-core kuralları yapıcılarını korumuyor;\n# R8 silince Vücut Haritası açılırken uygulama çöküyor.\n-keep class expo.modules.gl.** { *; }"
+          }
+        }
       ]
     ],
     "scheme": "anatomi",
