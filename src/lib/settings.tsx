@@ -16,18 +16,28 @@ export const PRIORITY_TOPICS: Record<Department, string[]> = {
   diger: ['iskelet', 'kas', 'eklemler', 'sinir'],
 };
 
+export type ModelDetail = 'yuksek' | 'standart';
+
+export const MODEL_DETAILS: { id: ModelDetail; label: string; description: string }[] = [
+  { id: 'yuksek', label: 'Yüksek (önerilen)', description: 'En ince ayrıntı: 2,7 milyon üçgen, gerçekçi gölgeler ve kas lifleri. Yeni telefonlar için.' },
+  { id: 'standart', label: 'Standart', description: 'Daha hafif model. Eski veya yavaş telefonlarda akıcı döner, daha az pil harcar.' },
+];
+
 type Settings = {
   department: Department | null;
+  /** 3D model detayı; yüksek detayda kapanan cihazlarda otomatik olarak standarda iner */
+  modelDetail: ModelDetail;
   /** Akademisyen modu: içerik üzerinde "Düzenleme talep et" düğmeleri görünür */
   reviewerMode: boolean;
 };
 
-const DEFAULTS: Settings = { department: null, reviewerMode: false };
+const DEFAULTS: Settings = { department: null, modelDetail: 'yuksek', reviewerMode: false };
 const STORAGE_KEY = 'anatomi-settings-v1';
 
 type SettingsContextValue = Settings & {
   setDepartment: (d: Department) => void;
   setReviewerMode: (on: boolean) => void;
+  setModelDetail: (d: ModelDetail) => void;
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -52,8 +62,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const setDepartment = useCallback((department: Department) => setSettings((s) => ({ ...s, department })), []);
   const setReviewerMode = useCallback((reviewerMode: boolean) => setSettings((s) => ({ ...s, reviewerMode })), []);
+  const setModelDetail = useCallback((modelDetail: ModelDetail) => setSettings((s) => ({ ...s, modelDetail })), []);
 
-  const value = useMemo(() => ({ ...settings, setDepartment, setReviewerMode }), [settings, setDepartment, setReviewerMode]);
+  const value = useMemo(() => ({ ...settings, setDepartment, setReviewerMode, setModelDetail }), [settings, setDepartment, setReviewerMode, setModelDetail]);
 
   if (!ready) return null;
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

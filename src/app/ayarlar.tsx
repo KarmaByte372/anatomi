@@ -6,11 +6,11 @@ import { Card, SectionTitle } from '@/components/ui';
 import type { IconName } from '@/data/types';
 import { appVersion, callSupport, CONTACT_EMAIL, CONTACT_PHONE, emailSupport } from '@/lib/contact';
 import { useProgress } from '@/lib/progress';
-import { DEPARTMENTS, useSettings } from '@/lib/settings';
+import { DEPARTMENTS, MODEL_DETAILS, useSettings } from '@/lib/settings';
 import { colors } from '@/theme';
 
 export default function SettingsScreen() {
-  const { department, setDepartment } = useSettings();
+  const { department, setDepartment, modelDetail, setModelDetail } = useSettings();
   const { reset } = useProgress();
 
   function confirmReset() {
@@ -32,6 +32,19 @@ export default function SettingsScreen() {
         {DEPARTMENTS.map((d) => (
           <Pressable key={d.id} onPress={() => setDepartment(d.id)} style={styles.radioRow} accessibilityRole="radio" accessibilityState={{ checked: department === d.id }}>
             <Ionicons name={department === d.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>{d.label}</Text>
+              <Text style={styles.rowText}>{d.description}</Text>
+            </View>
+          </Pressable>
+        ))}
+      </Card>
+
+      <SectionTitle>3D model detayı</SectionTitle>
+      <Card style={{ gap: 4, paddingVertical: 8 }}>
+        {MODEL_DETAILS.map((d) => (
+          <Pressable key={d.id} onPress={() => setModelDetail(d.id)} style={styles.radioRow} accessibilityRole="radio" accessibilityState={{ checked: modelDetail === d.id }}>
+            <Ionicons name={modelDetail === d.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={colors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{d.label}</Text>
               <Text style={styles.rowText}>{d.description}</Text>

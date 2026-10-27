@@ -8,12 +8,13 @@ import { anatomyStructures } from '@/data/anatomy3d';
 import type { AnatomyLayer } from '@/data/anatomyTypes';
 import { breadcrumb } from '@/lib/crashGuard';
 import { colors } from '@/theme';
-import { extractStructure, loadLayer, type LoadedLayer } from './loader';
+import { extractStructure, loadLayer, raycastLayer, type DetailLevel, type LoadedLayer } from './loader';
+import { createAnatomyMaterial } from './material';
 
 /** Hedef nokta etrafında dönen yörünge kamerası */
 type CameraState = { yaw: number; pitch: number; distance: number; target: THREE.Vector3 };
 
-const MIN_DIST = 0.6;
+const MIN_DIST = 0.35;
 const MAX_DIST = 32;
 const BODY_CENTER = new THREE.Vector3(0, 7.7, 0);
 const home = (): CameraState => ({ yaw: 0, pitch: 0.05, distance: 31.5, target: BODY_CENTER.clone() });
@@ -22,6 +23,8 @@ const ALL_LAYERS: AnatomyLayer[] = ['deri', 'kas', 'iskelet', 'organ', 'damar', 
 
 type Props = {
   layers: AnatomyLayer[];
+  /** Model detayı; değişirse bileşen yeniden kurulmalı (key ile) */
+  detail?: DetailLevel;
   /** Deri katmanının opaklığı (0–1) */
   skinOpacity?: number;
   /** Yarı saydam "hayalet" olarak çizilecek katmanlar (içteki yapıyı göstermek için) */
@@ -86,7 +89,7 @@ function facingLabel(yaw: number): string {
   return 'Sağ yan';
 }
 
-export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null, highlights = {}, onSelect, focus, onInteractingChange, onReady, onError, height = 480 }: Props) {
+export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = [], isolate = null, highlights = {}, onSelect, focus, onInteractingChange, onReady, onError, height = 480 }: Props) {
   const size = useRef({ width: 1, height: 1 });
   const camera = useRef(new THREE.PerspectiveCamera(32, 1, 0.05, 200));
   const current = useRef<CameraState>(home());
@@ -150,18 +153,13 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
     }
     setLoading((s) => [...new Set([...s, ...missing])]);
     for (const layer of missing) {
-      loadLayer(layer)
+      loadLayer(layer, detail)
         .then((data) => {
           if (cancelled || meshes.current.has(layer)) return;
           const isSkin = layer === 'deri';
-          const material = new THREE.MeshStandardMaterial({
-            vertexColors: true,
-            roughness: layer === 'iskelet' ? 0.8 : 0.6,
-            metalness: 0,
-            side: isSkin ? THREE.FrontSide : THREE.DoubleSide,
-            transparent: isSkin,
-            depthWrite: !isSkin,
-          });
+          const material = createAnatomyMaterial(layer, { side: isSkin ? THREE.FrontSide : THREE.DoubleSide });
+          material.transparent = isSkin;
+          material.depthWrite = !isSkin;
           const mesh = new THREE.Mesh(data.geometry, material);
           mesh.userData.layer = layer;
           // Saydam deri en son çizilsin
@@ -184,7 +182,7 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
     };
     // applyHighlights yalnızca yeni yüklenen katmana uygulanır
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, scene]);
+  }, [layers, detail, scene]);
 
   // Deri opaklığı ve hayalet katmanlar
   const ghostKey = ghost.join(',');
@@ -213,7 +211,7 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
       if (layer && range) {
         const mesh = new THREE.Mesh(
           extractStructure(layer, range),
-          new THREE.MeshStandardMaterial({ color: isoColor, roughness: 0.55, side: THREE.DoubleSide }),
+          createAnatomyMaterial(s.layer, { color: isoColor }),
         );
         mesh.userData.structure = isoId;
         isolated.current = mesh;
@@ -252,20 +250,19 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
     const { width, height: h } = size.current;
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2((x / width) * 2 - 1, -(y / h) * 2 + 1), camera.current);
+    let best: { id: number; distance: number } | null = null;
+    if (isolated.current) {
+      const hit = raycaster.intersectObject(isolated.current, false)[0];
+      if (hit) best = { id: isolated.current.userData.structure as number, distance: hit.distance };
+    }
     // Yarı saydam katmanlar dokunmayı engellemesin
-    const targets = [...meshes.current.values()].filter((m) => m.visible && !(m.material as THREE.Material).transparent);
-    if (isolated.current) targets.push(isolated.current);
-    const hit = raycaster.intersectObjects(targets, false)[0];
-    if (!hit || !hit.face) {
-      callbacks.current.onSelect?.(null);
-      return;
+    for (const [layer, mesh] of meshes.current) {
+      const data = loaded.current.get(layer);
+      if (!data || !mesh.visible || (mesh.material as THREE.Material).transparent) continue;
+      const hit = raycastLayer(data, raycaster.ray, best?.distance);
+      if (hit) best = { id: hit.structureId, distance: hit.distance };
     }
-    if (hit.object === isolated.current) {
-      callbacks.current.onSelect?.(hit.object.userData.structure as number);
-      return;
-    }
-    const data = loaded.current.get(hit.object.userData.layer as AnatomyLayer);
-    if (data) callbacks.current.onSelect?.(data.structureOfVertex[hit.face.a]);
+    callbacks.current.onSelect?.(best ? best.id : null);
   }
 
   function zoomBy(factor: number) {
@@ -402,13 +399,18 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
     renderer.setPixelRatio(1);
     renderer.setSize(width, heightPx, false);
     renderer.setClearColor(new THREE.Color('#F7EFEA'), 1);
+    // Parlak yüzeylerde (organ, damar) yanmayı önleyen yumuşak ton eşleme
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.05;
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xcbb6aa, 1.5));
-    const key = new THREE.DirectionalLight(0xffffff, 1.7);
+    // Stüdyo ışığı: üstten sıcak/alttan dolgu, kamerayı izleyen ana ışık, karşı yandan dolgu ve arkadan kontur ışığı
+    scene.add(new THREE.HemisphereLight(0xfff6ee, 0x8f7a70, 1.25));
+    const key = new THREE.DirectionalLight(0xfff3e6, 1.85);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff, 0.6);
-    fill.position.set(-10, 4, -12);
+    const fill = new THREE.DirectionalLight(0xe8eeff, 0.55);
     scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xffffff, 1.3);
+    scene.add(rim);
 
     const cam = camera.current;
     cam.aspect = width / heightPx;
@@ -451,7 +453,18 @@ export function Anatomy3D({ layers, skinOpacity = 1, ghost = [], isolate = null,
       );
       cam.lookAt(c.target);
       // Işık kamerayla birlikte döner; her açıdan aydınlık görünür
-      key.position.copy(cam.position).add(new THREE.Vector3(4, 6, 0));
+      const toCam = new THREE.Vector3().subVectors(cam.position, c.target).normalize();
+      const side = new THREE.Vector3(toCam.z, 0, -toCam.x).normalize();
+      key.position.copy(c.target).addScaledVector(toCam, 10).addScaledVector(side, 5).add(new THREE.Vector3(0, 7, 0));
+      key.target.position.copy(c.target);
+      key.target.updateMatrixWorld();
+      fill.position.copy(c.target).addScaledVector(toCam, 6).addScaledVector(side, -9);
+      fill.target.position.copy(c.target);
+      fill.target.updateMatrixWorld();
+      // Kontur ışığı modelin arkasından gelir; kenarları belirginleştirir
+      rim.position.copy(c.target).addScaledVector(toCam, -10).add(new THREE.Vector3(0, 5, 0));
+      rim.target.position.copy(c.target);
+      rim.target.updateMatrixWorld();
       renderer.render(scene, cam);
       gl.endFrameEXP();
       if (firstFrame) {

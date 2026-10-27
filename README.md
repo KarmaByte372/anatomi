@@ -49,13 +49,13 @@ src/lib/            Desteler, aralıklı tekrar/ilerleme, test oluşturma
 
 ### 3D veriyi yeniden üretmek
 
-`assets/anatomy/*.bin` ve `src/data/anatomy3d.ts` betiklerle üretilir:
+`assets/anatomy/{yuksek,standart}/*.bin` ve `src/data/anatomy3d.ts` betiklerle üretilir. İki detay seviyesi vardır: **yüksek** (~2,7 milyon üçgen, iskelet tam çözünürlükte) ve zayıf cihazlar için **standart** (~590 bin üçgen). Her köşe için normal, önceden hesaplanmış ortam gölgesi (ambient occlusion) ve kaslarda lif yönü de dosyaya yazılır.
 
 ```bash
 # BodyParts3D is-a arşivini ve isa_element_parts.txt dosyasını bir klasöre indir:
 # https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/
 python3 scripts/anatomy/classify.py <klasör> mapping.json   # parça → yapı (Latince/Türkçe isimler: scripts/anatomy/names.py)
-node scripts/anatomy/build.mjs <klasör> mapping.json        # sadeleştirme + ikili dosyalar
+node scripts/anatomy/build.mjs <klasör> mapping.json        # sadeleştirme, ortam gölgesi + ikili dosyalar (4 çekirdekte ~10 dk)
 ```
 
 3D veri: *BodyParts3D, © The Database Center for Life Science, CC BY 4.0*. Veri seti bir erkek bedenine dayandığı için kadın iç üreme organları modelde yoktur; bunlar konularda ve 2D şemada anlatılır.

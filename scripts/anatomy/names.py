@@ -20,7 +20,7 @@ ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 
 KIND_COLORS = {
     'skin': '#E7BFA6',
     'hair': '#4A3426',
-    'muscle': '#B8433F',
+    'muscle': '#953A33',
     'tendon': '#E4D8C2',
     'bone': '#EEE6D3',
     'cartilage': '#A9CFD9',

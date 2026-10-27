@@ -11,6 +11,7 @@ import type { AnatomyLayer, AnatomyStructure } from '@/data/anatomyTypes';
 import { getTopic } from '@/data/topics';
 import { clear3DPending, deviceInfo, did3DCrashLastTime, errorText, getLastError, getLastStep, mark3DPending, recordError, sendErrorReport } from '@/lib/crashGuard';
 import { sample } from '@/lib/random';
+import { useSettings } from '@/lib/settings';
 import { normalize } from '@/lib/text';
 import { colors } from '@/theme';
 
@@ -49,12 +50,20 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
   const [glError, setGlError] = useState<string | null>(null);
   /** Uyarı kartında gösterilen teknik bilgi (son adım, son hata) */
   const [diag, setDiag] = useState<string | null>(null);
+  const { modelDetail, setModelDetail } = useSettings();
+  /** Yüksek detayda kapanan cihazda standarda inildiyse bilgilendir */
+  const [downgraded, setDowngraded] = useState(false);
 
   useEffect(() => {
     let alive = true;
     did3DCrashLastTime().then((crashed) => {
       if (!alive) return;
-      if (crashed) {
+      if (crashed && modelDetail === 'yuksek') {
+        // Büyük olasılıkla bellek yetmedi: daha hafif modelle otomatik dene
+        setModelDetail('standart');
+        setDowngraded(true);
+        mark3DPending().then(() => alive && setGuard('run'));
+      } else if (crashed) {
         setGuard('crashed');
         Promise.all([getLastStep(), getLastError()]).then(([step, err]) => {
           if (alive) setDiag([`Cihaz: ${deviceInfo()}`, step ? `Son adım: ${step}` : null, err ? `Son hata: ${err.split('\n')[0]}` : null].filter(Boolean).join('\n'));
@@ -65,6 +74,8 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
     return () => {
       alive = false;
     };
+    // Yalnızca ekran açılışında kontrol edilir
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function retry3D() {
@@ -251,8 +262,17 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
       )}
 
       <View style={{ marginTop: 12 }}>
+        {downgraded && (
+          <Pressable onPress={() => setDowngraded(false)} style={styles.notice}>
+            <Ionicons name="speedometer-outline" size={16} color={colors.warning} />
+            <Text style={styles.noticeText}>Yüksek detaylı model bu cihazda kapandığı için standart detaya geçildi. Ayarlar&apos;dan değiştirebilirsin.</Text>
+            <Ionicons name="close" size={16} color={colors.muted} />
+          </Pressable>
+        )}
         {guard === 'run' ? (
           <Anatomy3D
+            key={modelDetail}
+            detail={modelDetail}
             height={540}
             layers={layers}
             skinOpacity={skinSolid ? 1 : 0.3}
@@ -353,6 +373,8 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
 }
 
 const styles = StyleSheet.create({
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
+  noticeText: { flex: 1, fontSize: 12.5, color: colors.text, lineHeight: 17 },
   search: {
     flexDirection: 'row',
     alignItems: 'center',
