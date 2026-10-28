@@ -43,6 +43,8 @@ type Props = {
   onInteractingChange?: (interacting: boolean) => void;
   /** Yeni yüklenen katman ilk kez başarıyla çizildiğinde */
   onReady?: () => void;
+  /** Model döndürülürken ölçülen kare süresi (ms, ortanca); cihazın yükü kaldırıp kaldırmadığını anlamak için bir kez bildirilir */
+  onFrameTime?: (ms: number) => void;
   /** GL başlatma veya çizim hatasında (bileşen kapanmaz, hata bildirilir) */
   onError?: (error: unknown) => void;
   height?: number;
@@ -93,7 +95,7 @@ function facingLabel(yaw: number): string {
   return 'Sağ yan';
 }
 
-export function Anatomy3D({ layers, model = 'erkek', detail = 'yuksek', skinOpacity = 1, ghost = [], isolate = null, highlights = {}, onSelect, focus, onInteractingChange, onReady, onError, height = 480 }: Props) {
+export function Anatomy3D({ layers, model = 'erkek', detail = 'yuksek', skinOpacity = 1, ghost = [], isolate = null, highlights = {}, onSelect, focus, onInteractingChange, onReady, onFrameTime, onError, height = 480 }: Props) {
   const size = useRef({ width: 1, height: 1 });
   const camera = useRef(new THREE.PerspectiveCamera(32, 1, 0.05, 200));
   const current = useRef<CameraState>(home());
@@ -101,9 +103,9 @@ export function Anatomy3D({ layers, model = 'erkek', detail = 'yuksek', skinOpac
   const dirty = useRef(true);
   /** Yeni bir katman sahneye eklendi; çizilince onReady bildirilir */
   const newLayerDrawn = useRef(false);
-  const callbacks = useRef({ onSelect, onInteractingChange, onReady, onError });
+  const callbacks = useRef({ onSelect, onInteractingChange, onReady, onFrameTime, onError });
   useEffect(() => {
-    callbacks.current = { onSelect, onInteractingChange, onReady, onError };
+    callbacks.current = { onSelect, onInteractingChange, onReady, onFrameTime, onError };
   });
 
   // Sahne nesneleri (GL bağlamından bağımsız oluşturulur)
@@ -445,6 +447,9 @@ export function Anatomy3D({ layers, model = 'erkek', detail = 'yuksek', skinOpac
       }
     };
     let firstFrame = true;
+    // Hareket sırasında ardışık kareler arası süre (GPU yükü dahil gerçek kare hızı)
+    const frameTimes: number[] = [];
+    let lastMovingFrame = 0;
     const drawFrame = () => {
       frame.current = requestAnimationFrame(render);
       const c = current.current;
@@ -484,6 +489,18 @@ export function Anatomy3D({ layers, model = 'erkek', detail = 'yuksek', skinOpac
       rim.target.updateMatrixWorld();
       renderer.render(scene, cam);
       gl.endFrameEXP();
+      const now = Date.now();
+      if (moving && frameTimes.length < 8) {
+        if (lastMovingFrame) frameTimes.push(now - lastMovingFrame);
+        lastMovingFrame = now;
+        if (frameTimes.length === 8) {
+          const median = [...frameTimes].sort((a, b) => a - b)[4];
+          breadcrumb(`kare süresi ${median} ms`);
+          callbacks.current.onFrameTime?.(median);
+        }
+      } else if (!moving) {
+        lastMovingFrame = 0;
+      }
       if (firstFrame) {
         firstFrame = false;
         breadcrumb('ilk kare çizildi (boş sahne)');
@@ -528,7 +545,8 @@ export function Anatomy3D({ layers, model = 'erkek', detail = 'yuksek', skinOpac
   return (
     <View style={[styles.wrap, { height }]}>
       <View ref={containerRef} style={StyleSheet.absoluteFill} onLayout={onLayout} {...responder.panHandlers}>
-        <GLView style={StyleSheet.absoluteFill} onContextCreate={onContextCreate} />
+        {/* iOS varsayılanı 4 katlı çoklu örnekleme; yüksek çözünürlüklü ekranda 2 yeterli, GPU yükü yarıya iner */}
+        <GLView style={StyleSheet.absoluteFill} onContextCreate={onContextCreate} msaaSamples={2} />
       </View>
 
       <View style={styles.facing} pointerEvents="none">

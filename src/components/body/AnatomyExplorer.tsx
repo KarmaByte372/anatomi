@@ -52,8 +52,8 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
   const [diag, setDiag] = useState<string | null>(null);
   const { modelDetail, setModelDetail, department, bodyModel: savedModel, setBodyModel } = useSettings();
   const bodyModel: AnatomyModel = savedModel ?? (department === 'ebelik' ? 'kadin' : 'erkek');
-  /** Yüksek detayda kapanan cihazda standarda inildiyse bilgilendir */
-  const [downgraded, setDowngraded] = useState(false);
+  /** Yüksek detayda kapanan veya yavaş kalan cihazda standarda inildiyse bilgilendir */
+  const [downgraded, setDowngraded] = useState<'crash' | 'slow' | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -62,7 +62,7 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
       if (crashed && modelDetail === 'yuksek') {
         // Büyük olasılıkla bellek yetmedi: daha hafif modelle otomatik dene
         setModelDetail('standart');
-        setDowngraded(true);
+        setDowngraded('crash');
         mark3DPending().then(() => alive && setGuard('run'));
       } else if (crashed) {
         setGuard('crashed');
@@ -291,9 +291,12 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
 
       <View style={{ marginTop: 12 }}>
         {downgraded && (
-          <Pressable onPress={() => setDowngraded(false)} style={styles.notice}>
+          <Pressable onPress={() => setDowngraded(null)} style={styles.notice}>
             <Ionicons name="speedometer-outline" size={16} color={colors.warning} />
-            <Text style={styles.noticeText}>Yüksek detaylı model bu cihazda kapandığı için standart detaya geçildi. Ayarlar&apos;dan değiştirebilirsin.</Text>
+            <Text style={styles.noticeText}>
+              Yüksek detaylı model bu cihazda {downgraded === 'crash' ? 'kapandığı' : 'yavaş döndüğü'} için standart detaya geçildi. Ayarlar&apos;dan
+              değiştirebilirsin.
+            </Text>
             <Ionicons name="close" size={16} color={colors.muted} />
           </Pressable>
         )}
@@ -312,6 +315,13 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
             focus={focus}
             onInteractingChange={onInteractingChange}
             onReady={clear3DPending}
+            onFrameTime={(ms) => {
+              // Saniyede ~12 kareden yavaşsa dokunmalar gecikir; daha hafif modele geç
+              if (ms > 80 && modelDetail === 'yuksek') {
+                setModelDetail('standart');
+                setDowngraded('slow');
+              }
+            }}
             onError={on3DError}
           />
         ) : guard === 'checking' ? null : (
