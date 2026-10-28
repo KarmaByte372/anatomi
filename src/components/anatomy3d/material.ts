@@ -2,6 +2,11 @@ import * as THREE from 'three';
 
 import type { AnatomyLayer } from '@/data/anatomyTypes';
 
+import { EXPLODE_SCALE } from './loader';
+
+/** Ayrık görünüm miktarı (0–1); tüm katman malzemeleri aynı değeri paylaşır, çubuk sürüklenince yalnızca bu değişir */
+export const explodeUniform = { value: 0 };
+
 /** Katmana göre yüzey: organlar ve damarlar ıslak/parlak, kemik mat, kaslarda lif dokusu */
 const SURFACE: Record<AnatomyLayer, { roughness: number; fibers: number }> = {
   deri: { roughness: 0.62, fibers: 0 },
@@ -29,12 +34,15 @@ export function createAnatomyMaterial(layer: AnatomyLayer, opts: { color?: THREE
   });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.fiberStrength = { value: surface.fibers };
+    shader.uniforms.explodeAmount = explodeUniform;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
         `#include <common>
 attribute float ao;
 attribute vec3 fiber;
+attribute vec3 explodeDir;
+uniform float explodeAmount;
 varying float vAo;
 varying vec3 vFiber;
 varying vec3 vObjPos;
@@ -46,7 +54,8 @@ varying vec3 vObjNormal;`,
 vAo = ao;
 vFiber = fiber;
 vObjPos = position;
-vObjNormal = normal;`,
+vObjNormal = normal;
+transformed += explodeDir * (${EXPLODE_SCALE.toFixed(1)} * explodeAmount);`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -99,6 +108,6 @@ reflectedLight.directSpecular *= mix(1.0, occ, 0.5);`,
       );
   };
   // Aynı değiştirilmiş gölgelendirici tüm katmanlarda paylaşılsın, lif gücü uniform ile ayrışsın
-  material.customProgramCacheKey = () => 'anatomy-v1';
+  material.customProgramCacheKey = () => 'anatomy-v2';
   return material;
 }

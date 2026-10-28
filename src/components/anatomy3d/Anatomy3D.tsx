@@ -9,7 +9,8 @@ import type { AnatomyLayer } from '@/data/anatomyTypes';
 import { breadcrumb } from '@/lib/crashGuard';
 import { colors } from '@/theme';
 import { extractStructure, loadLayer, raycastLayer, type DetailLevel, type LoadedLayer } from './loader';
-import { createAnatomyMaterial } from './material';
+import { ExplodeSlider } from './ExplodeSlider';
+import { createAnatomyMaterial, explodeUniform } from './material';
 
 /** Hedef nokta etrafında dönen yörünge kamerası */
 type CameraState = { yaw: number; pitch: number; distance: number; target: THREE.Vector3 };
@@ -19,6 +20,8 @@ const MAX_DIST = 32;
 const BODY_CENTER = new THREE.Vector3(0, 7.7, 0);
 const home = (): CameraState => ({ yaw: 0, pitch: 0.05, distance: 31.5, target: BODY_CENTER.clone() });
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+/** Ayrık görünümde beden büyüdüğü için kamera daha uzağa çıkabilir */
+const maxDist = () => MAX_DIST * (1 + explodeUniform.value * 0.9);
 const ALL_LAYERS: AnatomyLayer[] = ['deri', 'kas', 'iskelet', 'organ', 'damar', 'sinir'];
 
 type Props = {
@@ -109,6 +112,14 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
   const [loading, setLoading] = useState<AnatomyLayer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [facing, setFacing] = useState('Ön');
+  /** Parçaları ayırma miktarı (0–1); gölgelendiriciye ortak uniform ile aktarılır */
+  const [explode, setExplode] = useState(0);
+  useEffect(() => {
+    explodeUniform.value = 0;
+    return () => {
+      explodeUniform.value = 0;
+    };
+  }, []);
   const appliedHighlights = useRef<Record<number, string>>({});
 
   const rangeOf = (id: number) => {
@@ -162,6 +173,8 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
           material.depthWrite = !isSkin;
           const mesh = new THREE.Mesh(data.geometry, material);
           mesh.userData.layer = layer;
+          // Ayrık görünümde parçalar geometrinin sınır küresinin dışına çıkar; kırpılmasın
+          mesh.frustumCulled = false;
           // Saydam deri en son çizilsin
           mesh.renderOrder = isSkin ? 10 : 0;
           loaded.current.set(layer, data);
@@ -214,6 +227,9 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
           createAnatomyMaterial(s.layer, { color: isoColor }),
         );
         mesh.userData.structure = isoId;
+        mesh.userData.explode = range.explode;
+        mesh.position.copy(range.explode).multiplyScalar(explodeUniform.value);
+        mesh.frustumCulled = false;
         isolated.current = mesh;
         scene.add(mesh);
       }
@@ -238,7 +254,7 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
         yaw: shortestYaw(goal.current.yaw, yaw),
         pitch: 0.1,
         distance: clamp(r.radius * 6, 3.5, 16),
-        target: r.center.clone(),
+        target: r.center.clone().addScaledVector(r.explode, explodeUniform.value),
       };
     };
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -259,14 +275,14 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
     for (const [layer, mesh] of meshes.current) {
       const data = loaded.current.get(layer);
       if (!data || !mesh.visible || (mesh.material as THREE.Material).transparent) continue;
-      const hit = raycastLayer(data, raycaster.ray, best?.distance);
+      const hit = raycastLayer(data, raycaster.ray, best?.distance, explodeUniform.value);
       if (hit) best = { id: hit.structureId, distance: hit.distance };
     }
     callbacks.current.onSelect?.(best ? best.id : null);
   }
 
   function zoomBy(factor: number) {
-    goal.current.distance = clamp(goal.current.distance * factor, MIN_DIST, MAX_DIST);
+    goal.current.distance = clamp(goal.current.distance * factor, MIN_DIST, maxDist());
   }
 
   // Dokunma: tek parmak döndür, iki parmak yakınlaştır + kaydır, kısa dokunuş seç
@@ -300,7 +316,7 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
               g.pinch = d;
               g.pinchStart = goal.current.distance;
             } else {
-              goal.current.distance = clamp((g.pinchStart * g.pinch) / d, MIN_DIST, MAX_DIST);
+              goal.current.distance = clamp((g.pinchStart * g.pinch) / d, MIN_DIST, maxDist());
               // İki parmağın ortası hareket ettikçe modeli kaydır
               const cam = camera.current;
               const k = (goal.current.distance * 0.0016 * 400) / Math.max(size.current.height, 1);
@@ -491,6 +507,19 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
     size.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height };
   };
 
+  /** Ayırma miktarı değişince kamerayı da aynı oranda uzaklaştır; açılan beden çerçevede kalsın */
+  function changeExplode(v: number) {
+    const before = 1 + explodeUniform.value * 0.5;
+    const after = 1 + v * 0.5;
+    const g = goal.current;
+    g.distance = clamp((g.distance * after) / before, MIN_DIST, MAX_DIST * after);
+    g.target.sub(BODY_CENTER).multiplyScalar(after / before).add(BODY_CENTER);
+    explodeUniform.value = v;
+    if (isolated.current) isolated.current.position.copy(isolated.current.userData.explode as THREE.Vector3).multiplyScalar(v);
+    dirty.current = true;
+    setExplode(v);
+  }
+
   const rotateTo = (yaw: number) => {
     goal.current.yaw = shortestYaw(goal.current.yaw, yaw);
   };
@@ -534,6 +563,10 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
         <SmallButton label="Sol" onPress={() => rotateTo(Math.PI / 2)} />
         <SmallButton label="Arka" onPress={() => rotateTo(Math.PI)} />
         <SmallButton label="Sağ" onPress={() => rotateTo((3 * Math.PI) / 2)} />
+      </View>
+
+      <View style={styles.explode}>
+        <ExplodeSlider value={explode} onChange={changeExplode} onDragChange={(d) => callbacks.current.onInteractingChange?.(d)} />
       </View>
     </View>
   );
@@ -590,7 +623,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  views: { position: 'absolute', bottom: 10, left: 10, right: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  views: { position: 'absolute', bottom: 62, left: 10, right: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  explode: { position: 'absolute', bottom: 10, left: 10, right: 10 },
   small: {
     paddingHorizontal: 12,
     paddingVertical: 6,

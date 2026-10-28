@@ -38,7 +38,25 @@ export type StructureRange = {
   indexCount: number;
   center: THREE.Vector3;
   radius: number;
+  /** Tamamen ayrık görünümde yapının kayma vektörü (explode = 1 iken) */
+  explode: THREE.Vector3;
 };
+
+/** Ayrık görünüm: kayma vektörleri int16 olarak saklanır, gölgelendiricide bu ölçekle çarpılır */
+export const EXPLODE_SCALE = 32;
+/** Parçalar bu noktadan uzaklaşır (gövde ortası) */
+const EXPLODE_CENTER_Y = 7.7;
+/** Dış katmanlar daha çok, iç katmanlar daha az kayar; böylece iç içe katmanlar da birbirinden ayrılır */
+const EXPLODE_LAYER: Record<AnatomyLayer, number> = { deri: 1.5, kas: 1.15, damar: 1.0, sinir: 1.0, organ: 0.85, iskelet: 0.7 };
+
+/**
+ * Yapının merkezden uzaklığıyla orantılı kayma: yüzeye yakın yapılar derindekilerden daha çok uzaklaşır,
+ * kol/bacaklar yana, ön ve arka kaslar öne/arkaya açılır. Dikeyde daha az yayılır ki beden ekrana sığsın.
+ */
+function explodeVector(layer: AnatomyLayer, center: THREE.Vector3): THREE.Vector3 {
+  const k = EXPLODE_LAYER[layer] * 1.7;
+  return new THREE.Vector3(center.x * k, (center.y - EXPLODE_CENTER_Y) * 0.3 * k, center.z * k);
+}
 
 export type LoadedLayer = {
   layer: AnatomyLayer;
@@ -92,6 +110,7 @@ export function parseLayer(layer: AnatomyLayer, buffer: ArrayBuffer): LoadedLaye
   const normals = new Int8Array(totalV * 3);
   const ao = new Uint8Array(totalV);
   const fiber = new Int8Array(totalV * 3);
+  const explode = new Int16Array(totalV * 3);
   const colors = new Float32Array(totalV * 3);
   const indices = new Uint32Array(totalI);
   const structureOfVertex = new Uint16Array(totalV);
@@ -144,7 +163,16 @@ export function parseLayer(layer: AnatomyLayer, buffer: ArrayBuffer): LoadedLaye
     for (let k = 0; k < st.ic; k++) indices[i0 + k] = ind[k] + v0;
 
     const sphere = new THREE.Box3(new THREE.Vector3(minX, minY, minZ), new THREE.Vector3(maxX, maxY, maxZ)).getBoundingSphere(new THREE.Sphere());
-    ranges.push({ id: st.s, vertexStart: v0, vertexCount: st.vc, indexStart: i0, indexCount: st.ic, center: sphere.center, radius: sphere.radius });
+    const ex = explodeVector(layer, sphere.center);
+    const qx = Math.round((ex.x / EXPLODE_SCALE) * 32767);
+    const qy = Math.round((ex.y / EXPLODE_SCALE) * 32767);
+    const qz = Math.round((ex.z / EXPLODE_SCALE) * 32767);
+    for (let k = v0 * 3; k < (v0 + st.vc) * 3; k += 3) {
+      explode[k] = qx;
+      explode[k + 1] = qy;
+      explode[k + 2] = qz;
+    }
+    ranges.push({ id: st.s, vertexStart: v0, vertexCount: st.vc, indexStart: i0, indexCount: st.ic, center: sphere.center, radius: sphere.radius, explode: ex });
     v0 += st.vc;
     i0 += st.ic;
   }
@@ -155,13 +183,17 @@ export function parseLayer(layer: AnatomyLayer, buffer: ArrayBuffer): LoadedLaye
   geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3, true));
   geometry.setAttribute('ao', new THREE.BufferAttribute(ao, 1, true));
   geometry.setAttribute('fiber', new THREE.BufferAttribute(fiber, 3, true));
+  geometry.setAttribute('explodeDir', new THREE.BufferAttribute(explode, 3, true));
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   geometry.computeBoundingSphere();
   return { layer, geometry, structureOfVertex, ranges };
 }
 
-/** Tek bir yapının geometrisini katman geometrisinden ayırır (röntgen modunda tek başına çizmek için) */
+/**
+ * Tek bir yapının geometrisini katman geometrisinden ayırır (röntgen modunda tek başına çizmek için).
+ * Ayrık görünümdeki kayma burada yoktur; ağın konumu (mesh.position) ile verilir.
+ */
 export function extractStructure(layer: LoadedLayer, range: StructureRange): THREE.BufferGeometry {
   const idx = layer.geometry.getIndex()!;
   const indices = new Uint32Array(range.indexCount);
@@ -183,18 +215,20 @@ const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _c = new THREE.Vector3();
 const _p = new THREE.Vector3();
+const _center = new THREE.Vector3();
+const _ray = new THREE.Ray();
 
 /**
  * Işının katmanda çarptığı en yakın yapı. three.js'in tüm üçgenleri tarayan raycast'i milyonlarca üçgende
  * telefonda yavaş kalır; önce yapıların sınır küreleri elenir, yalnızca adayların üçgenleri test edilir.
  */
-export function raycastLayer(layer: LoadedLayer, ray: THREE.Ray, maxDistance = Infinity): LayerHit | null {
+export function raycastLayer(layer: LoadedLayer, ray: THREE.Ray, maxDistance = Infinity, explode = 0): LayerHit | null {
   const pos = layer.geometry.getAttribute('position').array as Float32Array;
   const idx = layer.geometry.getIndex()!.array as Uint32Array;
   // Yakından uzağa sırala; daha yakın bir çarpma bulunduysa uzak adaylar atlanır
   const candidates: { r: StructureRange; d: number }[] = [];
   for (const r of layer.ranges) {
-    _sphere.set(r.center, r.radius);
+    _sphere.set(_center.copy(r.center).addScaledVector(r.explode, explode), r.radius);
     if (!ray.intersectsSphere(_sphere)) continue;
     candidates.push({ r, d: Math.max(0, ray.origin.distanceTo(r.center) - r.radius) });
   }
@@ -204,15 +238,18 @@ export function raycastLayer(layer: LoadedLayer, ray: THREE.Ray, maxDistance = I
   for (const { r, d } of candidates) {
     if (d > bestT) break;
     const end = r.indexStart + r.indexCount;
+    // Yapı kaydırılmışsa ışını ters yönde kaydırıp orijinal üçgenlerle test et
+    _ray.copy(ray);
+    _ray.origin.addScaledVector(r.explode, -explode);
     for (let t = r.indexStart; t < end; t += 3) {
       _a.fromArray(pos, idx[t] * 3);
       _b.fromArray(pos, idx[t + 1] * 3);
       _c.fromArray(pos, idx[t + 2] * 3);
-      if (!ray.intersectTriangle(_a, _b, _c, false, _p)) continue;
-      const dist = _p.distanceTo(ray.origin);
+      if (!_ray.intersectTriangle(_a, _b, _c, false, _p)) continue;
+      const dist = _p.distanceTo(_ray.origin);
       if (dist < bestT) {
         bestT = dist;
-        best = { structureId: r.id, distance: dist, point: _p.clone() };
+        best = { structureId: r.id, distance: dist, point: _p.clone().addScaledVector(r.explode, explode) };
       }
     }
   }
