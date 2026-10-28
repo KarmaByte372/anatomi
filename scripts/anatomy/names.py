@@ -51,6 +51,11 @@ KIND_COLORS = {
     'iris': '#5D8AA8',
     'lens': '#CFE8F2',
     'membrane': '#E9DCC6',
+    # Kadın modeli (Human Reference Atlas)
+    'ovary': '#E8B7A3',
+    'ligament': '#E2D2BA',
+    'breast': '#F1C9A3',
+    'nipple': '#C7826F',
 }
 
 # Kısaltma yardımcıları --------------------------------------------------------
