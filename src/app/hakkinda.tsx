@@ -43,7 +43,7 @@ export default function AboutScreen() {
           kullanılmıştır. Model, mobil cihazlarda çalışması için sadeleştirilmiş ve yapı isimleri Latince/Türkçe olarak eşlenmiştir.
         </Text>
         <Text style={styles.p}>
-          Kadın model: Kemik yapısı ve beden şekli ABD Ulusal Tıp Kütüphanesi Visible Human Projesi'nin kadın bağışçısından alınmıştır.
+          Kadın model: Kemik yapısı ve beden şekli ABD Ulusal Tıp Kütüphanesi Visible Human Projesi&apos;nin kadın bağışçısından alınmıştır.
           İskelet: BoneHub – Visible Human 3D Models (H. Alavi, M. Asseln, Twente Üniversitesi; Andreassen ve ark. 2023, Denver Üniversitesi), CC BY 4.0.
           Rahim, tüpler, yumurtalıklar, rahim bağları, vajina, meme ve deri: Human Reference Atlas (HuBMAP; K. Browne, H. Schlehlein), CC BY 4.0.
           Kaslar, damarlar, sinirler ve diğer organlar erkek modelden kadın iskeletine uyarlanmıştır; şekilleri yaklaşık olarak kabul edilmelidir.
