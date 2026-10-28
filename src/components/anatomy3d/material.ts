@@ -19,8 +19,8 @@ const SURFACE: Record<AnatomyLayer, { roughness: number; fibers: number }> = {
 
 /**
  * MeshStandardMaterial'e iki ek:
- * - `ao` köşe niteliği: önceden hesaplanmış ortam gölgesi (kas araları, kemik girintileri derinlik kazanır)
- * - `fiber` köşe niteliği: kasın uzun ekseni; yüzeye bu eksen boyunca ince lif çizgileri çizilir.
+ * - `fiberAo.w` köşe niteliği: önceden hesaplanmış ortam gölgesi (kas araları, kemik girintileri derinlik kazanır)
+ * - `fiberAo.xyz` köşe niteliği: kasın uzun ekseni; yüzeye bu eksen boyunca ince lif çizgileri çizilir.
  *   Çizgiler uzaktan bakınca (piksel başına birden fazla lif düştüğünde) titreşmesin diye söner.
  */
 export function createAnatomyMaterial(layer: AnatomyLayer, opts: { color?: THREE.ColorRepresentation; side?: THREE.Side } = {}): THREE.MeshStandardMaterial {
@@ -39,9 +39,8 @@ export function createAnatomyMaterial(layer: AnatomyLayer, opts: { color?: THREE
       .replace(
         '#include <common>',
         `#include <common>
-attribute float ao;
-attribute vec3 fiber;
-attribute vec3 explodeDir;
+attribute vec4 fiberAo;
+attribute vec4 explodeDir;
 uniform float explodeAmount;
 varying float vAo;
 varying vec3 vFiber;
@@ -51,11 +50,11 @@ varying vec3 vObjNormal;`,
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-vAo = ao;
-vFiber = fiber;
+vFiber = fiberAo.xyz;
+vAo = fiberAo.w;
 vObjPos = position;
 vObjNormal = normal;
-transformed += explodeDir * (${EXPLODE_SCALE.toFixed(1)} * explodeAmount);`,
+transformed += explodeDir.xyz * (${EXPLODE_SCALE.toFixed(1)} * explodeAmount);`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -108,6 +107,6 @@ reflectedLight.directSpecular *= mix(1.0, occ, 0.5);`,
       );
   };
   // Aynı değiştirilmiş gölgelendirici tüm katmanlarda paylaşılsın, lif gücü uniform ile ayrışsın
-  material.customProgramCacheKey = () => 'anatomy-v2';
+  material.customProgramCacheKey = () => 'anatomy-v3';
   return material;
 }

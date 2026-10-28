@@ -127,10 +127,12 @@ export function parseLayer(layer: AnatomyLayer, buffer: ArrayBuffer): LoadedLaye
   const totalV = header.structures.reduce((s, x) => s + x.vc, 0);
   const totalI = header.structures.reduce((s, x) => s + x.ic, 0);
   const positions = new Float32Array(totalV * 3);
-  const normals = new Int8Array(totalV * 3);
-  const ao = new Uint8Array(totalV);
-  const fiber = new Int8Array(totalV * 3);
-  const explode = new Int16Array(totalV * 3);
+  // Küçük nitelikler 4 bayta hizalı tutulur: iOS'un OpenGL katmanı hizasız köşe verisini her karede işlemcide
+  // yeniden paketler ve milyonlarca köşede ekran donar. Bu yüzden normaller 4 bileşenli, ortam gölgesi lif yönüyle
+  // aynı pakette (xyz = lif, w = gölge) ve ayırma vektörü 4 bileşenlidir.
+  const normals = new Int8Array(totalV * 4);
+  const fiberAo = new Int8Array(totalV * 4);
+  const explode = new Int16Array(totalV * 4);
   const colors = new Float32Array(totalV * 3);
   const indices = new Uint32Array(totalI);
   const structureOfVertex = new Uint16Array(totalV);
@@ -146,9 +148,9 @@ export function parseLayer(layer: AnatomyLayer, buffer: ArrayBuffer): LoadedLaye
   for (const st of header.structures) {
     const q = new Int16Array(buffer, off, st.vc * 3);
     off += align4(st.vc * 6);
-    normals.set(new Int8Array(buffer, off, st.vc * 3), v0 * 3);
+    const n8 = new Int8Array(buffer, off, st.vc * 3);
     off += align4(st.vc * 3);
-    ao.set(new Uint8Array(buffer, off, st.vc), v0);
+    const ao8 = new Uint8Array(buffer, off, st.vc);
     off += align4(st.vc);
     const ind = st.i32 ? new Uint32Array(buffer, off, st.ic) : new Uint16Array(buffer, off, st.ic);
     off += align4(st.ic * (st.i32 ? 4 : 2));
@@ -169,9 +171,14 @@ export function parseLayer(layer: AnatomyLayer, buffer: ArrayBuffer): LoadedLaye
       colors[at] = color.r;
       colors[at + 1] = color.g;
       colors[at + 2] = color.b;
-      fiber[at] = fx;
-      fiber[at + 1] = fy;
-      fiber[at + 2] = fz;
+      const a4 = (v0 + k) * 4;
+      normals[a4] = n8[k * 3];
+      normals[a4 + 1] = n8[k * 3 + 1];
+      normals[a4 + 2] = n8[k * 3 + 2];
+      fiberAo[a4] = fx;
+      fiberAo[a4 + 1] = fy;
+      fiberAo[a4 + 2] = fz;
+      fiberAo[a4 + 3] = ao8[k] >> 1;
       structureOfVertex[v0 + k] = st.s;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
@@ -187,7 +194,7 @@ export function parseLayer(layer: AnatomyLayer, buffer: ArrayBuffer): LoadedLaye
     const qx = Math.round((ex.x / EXPLODE_SCALE) * 32767);
     const qy = Math.round((ex.y / EXPLODE_SCALE) * 32767);
     const qz = Math.round((ex.z / EXPLODE_SCALE) * 32767);
-    for (let k = v0 * 3; k < (v0 + st.vc) * 3; k += 3) {
+    for (let k = v0 * 4; k < (v0 + st.vc) * 4; k += 4) {
       explode[k] = qx;
       explode[k + 1] = qy;
       explode[k + 2] = qz;
@@ -200,10 +207,10 @@ export function parseLayer(layer: AnatomyLayer, buffer: ArrayBuffer): LoadedLaye
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   // Normaller, ortam gölgesi ve lif yönü dosyada hazır gelir (telefonda hesaplanmaz)
-  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3, true));
-  geometry.setAttribute('ao', new THREE.BufferAttribute(ao, 1, true));
-  geometry.setAttribute('fiber', new THREE.BufferAttribute(fiber, 3, true));
-  geometry.setAttribute('explodeDir', new THREE.BufferAttribute(explode, 3, true));
+  // Gölgelendiricide normal vec3 olarak okunur; 4. bileşen yalnızca hizalama içindir
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 4, true));
+  geometry.setAttribute('fiberAo', new THREE.BufferAttribute(fiberAo, 4, true));
+  geometry.setAttribute('explodeDir', new THREE.BufferAttribute(explode, 4, true));
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   geometry.computeBoundingSphere();
@@ -219,7 +226,7 @@ export function extractStructure(layer: LoadedLayer, range: StructureRange): THR
   const indices = new Uint32Array(range.indexCount);
   for (let k = 0; k < range.indexCount; k++) indices[k] = idx.getX(range.indexStart + k) - range.vertexStart;
   const g = new THREE.BufferGeometry();
-  for (const name of ['position', 'normal', 'ao', 'fiber']) {
+  for (const name of ['position', 'normal', 'fiberAo']) {
     const a = layer.geometry.getAttribute(name) as THREE.BufferAttribute;
     const arr = a.array as Float32Array | Int8Array | Uint8Array;
     g.setAttribute(name, new THREE.BufferAttribute(arr.slice(range.vertexStart * a.itemSize, (range.vertexStart + range.vertexCount) * a.itemSize), a.itemSize, a.normalized));
