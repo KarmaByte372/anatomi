@@ -5,7 +5,7 @@ import { ActivityIndicator, PanResponder, Pressable, StyleSheet, Text, View, typ
 import * as THREE from 'three';
 
 import { anatomyStructures } from '@/data/anatomy3d';
-import type { AnatomyLayer } from '@/data/anatomyTypes';
+import type { AnatomyLayer, AnatomyModel } from '@/data/anatomyTypes';
 import { breadcrumb } from '@/lib/crashGuard';
 import { colors } from '@/theme';
 import { extractStructure, loadLayer, raycastLayer, type DetailLevel, type LoadedLayer } from './loader';
@@ -26,7 +26,8 @@ const ALL_LAYERS: AnatomyLayer[] = ['deri', 'kas', 'iskelet', 'organ', 'damar', 
 
 type Props = {
   layers: AnatomyLayer[];
-  /** Model detayı; değişirse bileşen yeniden kurulmalı (key ile) */
+  /** Beden modeli ve detayı; değişirse bileşen yeniden kurulmalı (key ile) */
+  model?: AnatomyModel;
   detail?: DetailLevel;
   /** Deri katmanının opaklığı (0–1) */
   skinOpacity?: number;
@@ -92,7 +93,7 @@ function facingLabel(yaw: number): string {
   return 'Sağ yan';
 }
 
-export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = [], isolate = null, highlights = {}, onSelect, focus, onInteractingChange, onReady, onError, height = 480 }: Props) {
+export function Anatomy3D({ layers, model = 'erkek', detail = 'yuksek', skinOpacity = 1, ghost = [], isolate = null, highlights = {}, onSelect, focus, onInteractingChange, onReady, onError, height = 480 }: Props) {
   const size = useRef({ width: 1, height: 1 });
   const camera = useRef(new THREE.PerspectiveCamera(32, 1, 0.05, 200));
   const current = useRef<CameraState>(home());
@@ -164,7 +165,7 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
     }
     setLoading((s) => [...new Set([...s, ...missing])]);
     for (const layer of missing) {
-      loadLayer(layer, detail)
+      loadLayer(layer, model, detail)
         .then((data) => {
           if (cancelled || meshes.current.has(layer)) return;
           const isSkin = layer === 'deri';
@@ -195,7 +196,7 @@ export function Anatomy3D({ layers, detail = 'yuksek', skinOpacity = 1, ghost = 
     };
     // applyHighlights yalnızca yeni yüklenen katmana uygulanır
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, detail, scene]);
+  }, [layers, model, detail, scene]);
 
   // Deri opaklığı ve hayalet katmanlar
   const ghostKey = ghost.join(',');

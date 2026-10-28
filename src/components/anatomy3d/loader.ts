@@ -5,27 +5,47 @@ import * as THREE from 'three';
 
 import { anatomyStructures } from '@/data/anatomy3d';
 import { breadcrumb } from '@/lib/crashGuard';
-import type { AnatomyLayer } from '@/data/anatomyTypes';
+import type { AnatomyLayer, AnatomyModel } from '@/data/anatomyTypes';
 
 export type DetailLevel = 'yuksek' | 'standart';
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const LAYER_ASSETS: Record<DetailLevel, Record<AnatomyLayer, number>> = {
-  yuksek: {
-    deri: require('../../../assets/anatomy/yuksek/deri.bin'),
-    kas: require('../../../assets/anatomy/yuksek/kas.bin'),
-    iskelet: require('../../../assets/anatomy/yuksek/iskelet.bin'),
-    organ: require('../../../assets/anatomy/yuksek/organ.bin'),
-    damar: require('../../../assets/anatomy/yuksek/damar.bin'),
-    sinir: require('../../../assets/anatomy/yuksek/sinir.bin'),
+const LAYER_ASSETS: Record<AnatomyModel, Record<DetailLevel, Record<AnatomyLayer, number>>> = {
+  erkek: {
+    yuksek: {
+      deri: require('../../../assets/anatomy/erkek/yuksek/deri.bin'),
+      kas: require('../../../assets/anatomy/erkek/yuksek/kas.bin'),
+      iskelet: require('../../../assets/anatomy/erkek/yuksek/iskelet.bin'),
+      organ: require('../../../assets/anatomy/erkek/yuksek/organ.bin'),
+      damar: require('../../../assets/anatomy/erkek/yuksek/damar.bin'),
+      sinir: require('../../../assets/anatomy/erkek/yuksek/sinir.bin'),
+    },
+    standart: {
+      deri: require('../../../assets/anatomy/erkek/standart/deri.bin'),
+      kas: require('../../../assets/anatomy/erkek/standart/kas.bin'),
+      iskelet: require('../../../assets/anatomy/erkek/standart/iskelet.bin'),
+      organ: require('../../../assets/anatomy/erkek/standart/organ.bin'),
+      damar: require('../../../assets/anatomy/erkek/standart/damar.bin'),
+      sinir: require('../../../assets/anatomy/erkek/standart/sinir.bin'),
+    },
   },
-  standart: {
-    deri: require('../../../assets/anatomy/standart/deri.bin'),
-    kas: require('../../../assets/anatomy/standart/kas.bin'),
-    iskelet: require('../../../assets/anatomy/standart/iskelet.bin'),
-    organ: require('../../../assets/anatomy/standart/organ.bin'),
-    damar: require('../../../assets/anatomy/standart/damar.bin'),
-    sinir: require('../../../assets/anatomy/standart/sinir.bin'),
+  kadin: {
+    yuksek: {
+      deri: require('../../../assets/anatomy/kadin/yuksek/deri.bin'),
+      kas: require('../../../assets/anatomy/kadin/yuksek/kas.bin'),
+      iskelet: require('../../../assets/anatomy/kadin/yuksek/iskelet.bin'),
+      organ: require('../../../assets/anatomy/kadin/yuksek/organ.bin'),
+      damar: require('../../../assets/anatomy/kadin/yuksek/damar.bin'),
+      sinir: require('../../../assets/anatomy/kadin/yuksek/sinir.bin'),
+    },
+    standart: {
+      deri: require('../../../assets/anatomy/kadin/standart/deri.bin'),
+      kas: require('../../../assets/anatomy/kadin/standart/kas.bin'),
+      iskelet: require('../../../assets/anatomy/kadin/standart/iskelet.bin'),
+      organ: require('../../../assets/anatomy/kadin/standart/organ.bin'),
+      damar: require('../../../assets/anatomy/kadin/standart/damar.bin'),
+      sinir: require('../../../assets/anatomy/kadin/standart/sinir.bin'),
+    },
   },
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -259,13 +279,14 @@ export function raycastLayer(layer: LoadedLayer, ray: THREE.Ray, maxDistance = I
 const cache = new Map<string, Promise<LoadedLayer>>();
 
 /** Katmanı bir kez indirir/çözer; sonraki çağrılar aynı sonucu döner */
-export function loadLayer(layer: AnatomyLayer, detail: DetailLevel): Promise<LoadedLayer> {
-  const key = `${detail}/${layer}`;
-  // Detay seviyesi değiştiyse eski seviyenin verisini bellekte tutma
-  for (const k of cache.keys()) if (!k.startsWith(`${detail}/`)) cache.delete(k);
+export function loadLayer(layer: AnatomyLayer, model: AnatomyModel, detail: DetailLevel): Promise<LoadedLayer> {
+  const prefix = `${model}/${detail}/`;
+  const key = prefix + layer;
+  // Model veya detay seviyesi değiştiyse eskisinin verisini bellekte tutma
+  for (const k of cache.keys()) if (!k.startsWith(prefix)) cache.delete(k);
   let p = cache.get(key);
   if (!p) {
-    p = readAsset(layer, LAYER_ASSETS[detail][layer]).then((buf) => {
+    p = readAsset(layer, LAYER_ASSETS[model][detail][layer]).then((buf) => {
       breadcrumb(`${layer}: çözülüyor (${Math.round(buf.byteLength / 1024)} KB)`);
       const data = parseLayer(layer, buf);
       breadcrumb(`${layer}: çözüldü`);

@@ -6,8 +6,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Anatomy3D } from '@/components/anatomy3d/Anatomy3D';
 import { EditRequestButton } from '@/components/EditRequestButton';
 import { Button, Card, Chip } from '@/components/ui';
-import { anatomyStructures, LAYERS, layerLabel, searchText, sideLabel, topicForStructure } from '@/data/anatomyInfo';
-import type { AnatomyLayer, AnatomyStructure } from '@/data/anatomyTypes';
+import { anatomyStructures, inModel, LAYERS, layerLabel, searchText, sideLabel, topicForStructure } from '@/data/anatomyInfo';
+import type { AnatomyLayer, AnatomyModel, AnatomyStructure } from '@/data/anatomyTypes';
 import { getTopic } from '@/data/topics';
 import { clear3DPending, deviceInfo, did3DCrashLastTime, errorText, getLastError, getLastStep, mark3DPending, recordError, sendErrorReport } from '@/lib/crashGuard';
 import { sample } from '@/lib/random';
@@ -23,12 +23,12 @@ const fullName = (s: AnatomyStructure) => {
   return side ? `${s.tr} (${side.toLocaleLowerCase('tr')})` : s.tr;
 };
 
-function quizPool(layers: AnatomyLayer[]): AnatomyStructure[] {
-  return anatomyStructures.filter((s) => s.layer !== 'deri' && layers.includes(s.layer));
+function quizPool(layers: AnatomyLayer[], model: AnatomyModel): AnatomyStructure[] {
+  return anatomyStructures.filter((s) => s.layer !== 'deri' && layers.includes(s.layer) && inModel(s, model));
 }
 
-function makeQuestion(layers: AnatomyLayer[], previous?: number): Question | null {
-  const pool = quizPool(layers);
+function makeQuestion(layers: AnatomyLayer[], model: AnatomyModel, previous?: number): Question | null {
+  const pool = quizPool(layers, model);
   if (pool.length < 4) return null;
   const [target] = sample(
     pool.filter((s) => s.id !== previous),
@@ -50,7 +50,8 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
   const [glError, setGlError] = useState<string | null>(null);
   /** Uyarı kartında gösterilen teknik bilgi (son adım, son hata) */
   const [diag, setDiag] = useState<string | null>(null);
-  const { modelDetail, setModelDetail } = useSettings();
+  const { modelDetail, setModelDetail, department, bodyModel: savedModel, setBodyModel } = useSettings();
+  const bodyModel: AnatomyModel = savedModel ?? (department === 'ebelik' ? 'kadin' : 'erkek');
   /** Yüksek detayda kapanan cihazda standarda inildiyse bilgilendir */
   const [downgraded, setDowngraded] = useState(false);
 
@@ -117,11 +118,24 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
   }
 
   function newQuestion(m: Mode = mode, ls: AnatomyLayer[] = layers) {
-    const q = makeQuestion(ls, question?.target.id);
+    const q = makeQuestion(ls, bodyModel, question?.target.id);
     setQuestion(q);
     setAnswer(null);
     setXray(null);
     if (q && m === 'name') focusOn(q.target.id);
+  }
+
+  function changeModel(m: AnatomyModel) {
+    if (m === bodyModel) return;
+    // Yeni model yüklenirken kapanırsa bir sonraki açılışta anlaşılsın
+    mark3DPending();
+    setBodyModel(m);
+    setSelected(null);
+    setXray(null);
+    setQuestion(null);
+    setAnswer(null);
+    setMode('explore');
+    setScore({ correct: 0, total: 0 });
   }
 
   function changeMode(m: Mode) {
@@ -175,17 +189,31 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
   const results = useMemo(() => {
     const q = normalize(query.trim());
     if (q.length < 2) return [];
-    const hits = anatomyStructures.filter((s) => normalize(searchText(s)).includes(q));
+    const hits = anatomyStructures.filter((s) => inModel(s, bodyModel) && normalize(searchText(s)).includes(q));
     // İsmin başında geçenler önce
     const starts = (s: AnatomyStructure) => normalize(s.la).startsWith(q) || normalize(s.tr).startsWith(q);
     return [...hits.filter(starts), ...hits.filter((s) => !starts(s))].slice(0, 10);
-  }, [query]);
+  }, [query, bodyModel]);
 
   const topicId = structure ? topicForStructure(structure) : null;
   const correct = question && answer !== null && anatomyStructures[answer].la === question.target.la;
 
   return (
     <View>
+      <View style={styles.sex}>
+        {(['kadin', 'erkek'] as const).map((m) => (
+          <Pressable
+            key={m}
+            onPress={() => changeModel(m)}
+            style={[styles.sexBtn, bodyModel === m && styles.sexBtnActive]}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: bodyModel === m }}
+          >
+            <Ionicons name={m === 'kadin' ? 'female' : 'male'} size={15} color={bodyModel === m ? '#fff' : colors.muted} />
+            <Text style={[styles.sexText, bodyModel === m && { color: '#fff' }]}>{m === 'kadin' ? 'Kadın' : 'Erkek'}</Text>
+          </Pressable>
+        ))}
+      </View>
       <View style={styles.search}>
         <Ionicons name="search" size={18} color={colors.muted} />
         <TextInput
@@ -271,7 +299,8 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
         )}
         {guard === 'run' ? (
           <Anatomy3D
-            key={modelDetail}
+            key={`${bodyModel}-${modelDetail}`}
+            model={bodyModel}
             detail={modelDetail}
             height={540}
             layers={layers}
@@ -373,6 +402,21 @@ export function AnatomyExplorer({ onInteractingChange }: { onInteractingChange: 
 }
 
 const styles = StyleSheet.create({
+  sex: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  sexBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  sexBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  sexText: { fontSize: 14, fontWeight: '800', color: colors.text },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
   noticeText: { flex: 1, fontSize: 12.5, color: colors.text, lineHeight: 17 },
   search: {

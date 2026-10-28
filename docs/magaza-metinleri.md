@@ -12,8 +12,9 @@ Ebelik, hemşirelik ve sağlık öğrencileri için 3D anatomi, kartlar ve testl
 ## Tam açıklama
 Anatomi Rehberi; ebelik, hemşirelik ve diğer sağlık bilimleri öğrencilerinin anatomi dersine çalışması için hazırlandı. İnternet gerektirmez, hesap açmanızı istemez.
 
-**3D ANATOMİ MODELİ**
-• Gerçek insan vücudu verisinden üretilmiş, 1.000'den fazla yapıdan oluşan model
+**3D ANATOMİ MODELİ (KADIN VE ERKEK)**
+• Gerçek insan vücudu verisinden üretilmiş, 1.000'den fazla yapıdan oluşan kadın ve erkek modeller
+• Kadın modelde rahim, tüpler, yumurtalıklar, rahim bağları, vajina ve meme bezleri
 • Deri, kaslar, iskelet, organlar, damarlar ve sinir sistemi katmanları
 • Her yapının Latince ve Türkçe adı, sağ/sol bilgisi
 • Röntgen modu: seçtiğin yapı öne çıkar, gerisi saydamlaşır
@@ -34,7 +35,7 @@ Akademisyen modunu açarak tüm içeriği inceleyebilir, düzeltilmesini istedi�
 
 Uygulama eğitim amaçlıdır; ders kitabınızın ve öğretim üyelerinizin anlatımının yerini tutmaz.
 
-3D veri: BodyParts3D, © The Database Center for Life Science (CC BY 4.0).
+3D veri (CC BY 4.0): BodyParts3D, © The Database Center for Life Science; BoneHub – Visible Human 3D Models (Twente Üniversitesi); Human Reference Atlas (HuBMAP).
 
 ## Anahtar kelimeler (App Store, en fazla 100 karakter, virgülle)
 anatomi,ebelik,hemşirelik,3d anatomi,kas,iskelet,tıp,sağlık,ders,flashcard,test,latince

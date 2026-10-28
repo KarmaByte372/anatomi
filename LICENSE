@@ -18,6 +18,15 @@ Bu depo iki lisans altında yayımlanır:
    "BodyParts3D, © The Database Center for Life Science, licensed under
    CC Attribution 4.0 International". Bu atıf korunmalıdır.
 
+   Kadın modeli ayrıca şu CC BY 4.0 verilerinden türetilmiştir:
+   - BoneHub – Visible Human 3D Models (H. Alavi, M. Asseln, University of
+     Twente), https://huggingface.co/datasets/BoneHub/visible-human-3d-models
+     ve Andreassen et al., "Three Dimensional Lower Extremity Musculoskeletal
+     Geometry of the Visible Human Female and Male", Sci Data 10, 34 (2023).
+   - Human Reference Atlas 3D Reference Object Library (HuBMAP; K. Browne,
+     H. Schlehlein), https://humanatlas.io/3d-reference-library
+   Her ikisi de ABD Ulusal Tıp Kütüphanesi Visible Human Project verisine dayanır.
+
 -------------------------------------------------------------------------------
 MIT License
 

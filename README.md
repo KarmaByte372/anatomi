@@ -4,7 +4,7 @@ Ebelik, hemşirelik ve diğer sağlık bölümlerindeki öğrenciler için anato
 
 ## Neler var?
 
-- **3D anatomi modeli**: Gerçek insan vücudu verisinden (BodyParts3D) üretilmiş, 1.000'den fazla ayrı yapıdan oluşan model: tüm kemikler, ~150 kas, kalp odacıkları ve kapakları, sindirim organları, damarlar, beyin kıvrımları, göz.
+- **3D anatomi modeli (kadın ve erkek)**: Gerçek insan vücudu verisinden üretilmiş, 1.000'den fazla ayrı yapıdan oluşan iki model: tüm kemikler, ~350 kas, kalp odacıkları ve kapakları, sindirim organları, damarlar, beyin kıvrımları, göz. Kadın modelde rahim (bölümleriyle), tüpler, yumurtalıklar, rahim bağları, vajina ve meme bezleri vardır.
   - Katmanlar: deri (saydam/opak), kaslar, iskelet, organlar, damarlar, sinir sistemi — açıp kapatarak deriden kemiğe in.
   - Tek parmakla döndür, iki parmakla yakınlaştır/kaydır (webde fare tekerleği veya +/− düğmeleri).
   - Dokunduğun yapının Latince ve Türkçe adı, tarafı (sağ/sol) ve ilgili ders konusu görünür.
@@ -49,16 +49,29 @@ src/lib/            Desteler, aralıklı tekrar/ilerleme, test oluşturma
 
 ### 3D veriyi yeniden üretmek
 
-`assets/anatomy/{yuksek,standart}/*.bin` ve `src/data/anatomy3d.ts` betiklerle üretilir. İki detay seviyesi vardır: **yüksek** (~2,7 milyon üçgen, iskelet tam çözünürlükte) ve zayıf cihazlar için **standart** (~590 bin üçgen). Her köşe için normal, önceden hesaplanmış ortam gölgesi (ambient occlusion) ve kaslarda lif yönü de dosyaya yazılır.
+`assets/anatomy/{erkek,kadin}/{yuksek,standart}/*.bin` ve `src/data/anatomy3d.ts` betiklerle üretilir. İki detay seviyesi vardır: **yüksek** (~2,7 milyon üçgen, iskelet tam çözünürlükte) ve zayıf cihazlar için **standart** (~590 bin üçgen). Her köşe için normal, önceden hesaplanmış ortam gölgesi (ambient occlusion) ve kaslarda lif yönü de dosyaya yazılır.
 
 ```bash
 # BodyParts3D is-a arşivini ve isa_element_parts.txt dosyasını bir klasöre indir:
 # https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/
 python3 scripts/anatomy/classify.py <klasör> mapping.json   # parça → yapı (Latince/Türkçe isimler: scripts/anatomy/names.py)
-node scripts/anatomy/build.mjs <klasör> mapping.json        # sadeleştirme, ortam gölgesi + ikili dosyalar (4 çekirdekte ~10 dk)
+node scripts/anatomy/build.mjs <klasör> mapping.json <kadın_klasörü>  # sadeleştirme, ortam gölgesi + ikili dosyalar (aşağıya bakın)
 ```
 
-3D veri: *BodyParts3D, © The Database Center for Life Science, CC BY 4.0*. Veri seti bir erkek bedenine dayandığı için kadın iç üreme organları modelde yoktur; bunlar konularda ve 2D şemada anlatılır.
+3D veri (hepsi CC BY 4.0):
+- Erkek model: *BodyParts3D, © The Database Center for Life Science*.
+- Kadın model: iskelet *BoneHub – Visible Human 3D Models* (Twente Üniv.; Andreassen ve ark. 2023), kadına özgü yapılar ve deri *Human Reference Atlas* (HuBMAP). Kaslar, damarlar, sinirler ve diğer organlar BodyParts3D'den kadın iskeletine ince plaka dönüşümüyle uyarlanır.
+
+Kadın modelini yeniden üretmek için (`scripts/anatomy/kadin/`):
+
+```bash
+# BoneHub kadın STL'leri: visible_human_3d_models/CT/Mesh/02_Female/*/*.stl → <bonehub>
+# Human Reference Atlas: https://cdn.humanatlas.io/digital-objects/ref-organ/united-female/v1.5/assets/3d-vh-f-united.glb
+python3 scripts/anatomy/kadin/warp.py <klasör> <bonehub> warp.npz            # erkek → kadın iskeleti dönüşümü
+python3 scripts/anatomy/kadin/organs.py 3d-vh-f-united.glb <bonehub> organlar  # kadına özgü yapılar
+python3 scripts/anatomy/kadin/export.py <klasör> warp.npz organlar kadin       # taşınmış köşeler
+node scripts/anatomy/build.mjs <klasör> mapping.json kadin                       # iki model, iki detay seviyesi
+```
 
 Yeni bilgi eklemek için ilgili `src/data/topics/*.ts` dosyasındaki `cards` dizisine `{ q: 'Soru', a: 'Cevap' }` eklemek yeterli.
 

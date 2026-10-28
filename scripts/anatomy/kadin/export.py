@@ -3,7 +3,7 @@
     python3 scripts/anatomy/kadin/export.py <bodyparts3d_klasörü> <warp.npz> <organs_klasörü> <çıktı_klasörü>
 
 - Erkek modeldeki her yapı (erkeğe özgü olanlar hariç) warp.py'nin ince plaka dönüşümüyle kadın bedenine taşınır.
-- organs.py'nin çıkardığı kadına özgü yapılar ve kadın derisi eklenir.
+- organs.py'nin çıkardığı kadına özgü yapılar ve kadın derisi eklenir (derinin kolları skin.py ile modelin pozuna getirilir).
 - Kadın bedeni, uygulamada erkek modelle aynı yerde dursun diye ortalanır (ayaklar aynı zeminde).
 
 Çıktı: positions.bin (float32, uygulama koordinatları), index.json {OBJ adı: [başlangıç, köşe sayısı]},
@@ -19,6 +19,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent))
 from common import read_obj  # noqa: E402
 from organs import write_obj  # noqa: E402
+from skin import main as fix_skin_arms  # noqa: E402
 from warp import TPS  # noqa: E402
 
 # Kadın modelinde bulunmayan erkek yapıları (Latince adla)
@@ -73,6 +74,8 @@ def main(bp3d_dir, warp_npz, organs_dir, out_dir):
         v, f = read_obj(Path(organs_dir) / f"{m['file']}.obj")
         write_obj(out / 'extra' / f"{m['file']}.obj", v + shift, f)
     json.dump(meta, open(out / 'extra' / 'yapilar.json', 'w'), ensure_ascii=False, indent=1)
+    # Atlas derisinin yana açık kollarını modelin pozuna getir
+    fix_skin_arms(bp3d_dir, out)
     print(f'{len(index)} erkek yapı dosyası taşındı, {len(meta)} kadına özgü yapı eklendi')
 
 

@@ -1,11 +1,16 @@
 /**
  * BodyParts3D OBJ dosyalarından uygulamanın 3D anatomi verisini üretir.
  *
- *   node scripts/anatomy/build.mjs <bodyparts3d_dir> <mapping.json> [yuksek|standart]
+ *   node scripts/anatomy/build.mjs <bodyparts3d_dir> <mapping.json> <kadın_klasörü> [erkek|kadin] [yuksek|standart]
+ *
+ * İki model üretilir:
+ *   erkek – BodyParts3D'nin kendisi
+ *   kadin – aynı yapılar kadın iskeletine oturtulmuş hâlde + kadına özgü yapılar (scripts/anatomy/kadin/ ile üretilen
+ *           <kadın_klasörü>: positions.bin + index.json taşınmış köşeler, extra/ kadına özgü yapılar ve kadın derisi)
  *
  * Çıktılar:
- *   assets/anatomy/<detay>/<katman>.bin – iki detay seviyesi: yuksek (varsayılan) ve standart (zayıf cihazlar)
- *   src/data/anatomy3d.ts               – yapıların Latince/Türkçe isimleri, katman ve renkleri
+ *   assets/anatomy/<model>/<detay>/<katman>.bin – iki detay seviyesi: yuksek (varsayılan) ve standart (zayıf cihazlar)
+ *   src/data/anatomy3d.ts                       – iki modelin ortak yapı listesi (isimler, katman, renk, hangi modelde olduğu)
  *
  * İkili biçim (küçük endian):
  *   "ANT2" | uint32 headerLength | header JSON (4'e hizalı)
@@ -21,7 +26,7 @@ import os from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { MeshoptSimplifier } from 'meshoptimizer';
 
-const [srcDir, mappingPath, onlyLod] = process.argv.slice(2);
+const [srcDir, mappingPath, femaleDir, onlyModel, onlyLod] = process.argv.slice(2);
 const objDir = path.join(srcDir, 'isa_BP3D_4.0_obj_99');
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 const outDir = path.join(root, 'assets/anatomy');
@@ -48,8 +53,8 @@ const kindColors = JSON.parse(
 const mapping = JSON.parse(fs.readFileSync(mappingPath, 'utf8'));
 
 // ---- OBJ okuma ----
-function readObj(file) {
-  const text = fs.readFileSync(path.join(objDir, `${file}.obj`), 'utf8');
+function readObj(file, dir = objDir) {
+  const text = fs.readFileSync(path.join(dir, `${file}.obj`), 'utf8');
   const pos = [];
   const idx = [];
   for (const line of text.split('\n')) {
@@ -65,92 +70,134 @@ function readObj(file) {
   return { pos, idx };
 }
 
-// ---- Yapılara gruplama ----
-const structures = new Map(); // key -> {meta, files}
+// Kadın modeli: taşınmış köşeler (üçgenler BodyParts3D OBJ'sinden okunur) ve kadına özgü yapılar
+const femaleIndex = JSON.parse(fs.readFileSync(path.join(femaleDir, 'index.json'), 'utf8'));
+const femalePositions = new Float32Array(fs.readFileSync(path.join(femaleDir, 'positions.bin')).buffer.slice(0));
+const femaleExtraDir = path.join(femaleDir, 'extra');
+const femaleExtras = JSON.parse(fs.readFileSync(path.join(femaleExtraDir, 'yapilar.json'), 'utf8'));
+
+/** Yapının bir parçasını modele göre okur */
+function readPart(model, src) {
+  if (src.extra) return readObj(src.file, femaleExtraDir);
+  const o = readObj(src.file);
+  if (model === 'kadin') {
+    const [start, count] = femaleIndex[src.file];
+    o.pos = Array.from(femalePositions.subarray(start, start + count * 3));
+  }
+  return o;
+}
+
+// ---- Yapılara gruplama (iki modelin birleşimi; id'ler modeller arasında ortak) ----
+const structures = new Map(); // key -> { meta, parts: { erkek: [...], kadin: [...] } }
+const keyOf = (m) => `${m.layer}|${m.la}|${m.side ?? ''}`;
 for (const m of mapping) {
-  const key = `${m.layer}|${m.la}|${m.side ?? ''}`;
-  if (!structures.has(key)) structures.set(key, { meta: m, files: [] });
-  structures.get(key).files.push(m.file);
+  const key = keyOf(m);
+  if (!structures.has(key)) structures.set(key, { meta: m, parts: { erkek: [], kadin: [] } });
+  const st = structures.get(key);
+  st.parts.erkek.push({ file: m.file });
+  if (femaleIndex[m.file]) st.parts.kadin.push({ file: m.file });
+}
+for (const m of femaleExtras) {
+  const key = keyOf(m);
+  if (!structures.has(key)) structures.set(key, { meta: m, parts: { erkek: [], kadin: [] } });
+  structures.get(key).parts.kadin.push({ file: m.file, extra: true });
 }
 
 await MeshoptSimplifier.ready;
 
 const meta = []; // src/data/anatomy3d.ts içeriği
-const perLayer = Object.fromEntries(LAYERS.map((l) => [l, []]));
-let gmin = [Infinity, Infinity, Infinity];
-let gmax = [-Infinity, -Infinity, -Infinity];
-
-console.log(`${structures.size} yapı okunuyor...`);
-for (const [, { meta: m, files }] of structures) {
-  const pos = [];
-  const idx = [];
-  for (const f of files) {
-    const o = readObj(f);
-    const base = pos.length / 3;
-    for (const v of o.pos) pos.push(v);
-    for (const i of o.idx) idx.push(i + base);
-  }
-  for (let i = 0; i < pos.length; i += 3) {
-    for (let a = 0; a < 3; a++) {
-      gmin[a] = Math.min(gmin[a], pos[i + a]);
-      gmax[a] = Math.max(gmax[a], pos[i + a]);
-    }
-  }
+const MODELS = ['erkek', 'kadin'];
+for (const [, st] of structures) {
+  const m = st.meta;
   const id = meta.length;
-  meta.push({ id, la: m.la, tr: m.tr, layer: m.layer, kind: m.kind, side: m.side, color: variedColor(kindColors[m.kind], m.kind, id) });
-  const p32 = new Float32Array(pos);
-  perLayer[m.layer].push({ id, pos: p32, idx: new Uint32Array(idx), fiber: m.kind === 'muscle' ? principalAxis(p32) : undefined });
+  st.id = id;
+  const models = MODELS.filter((k) => st.parts[k].length > 0);
+  meta.push({ id, la: m.la, tr: m.tr, layer: m.layer, kind: m.kind, side: m.side, color: variedColor(kindColors[m.kind], m.kind, id), ...(models.length === 1 ? { model: models[0] } : {}) });
+}
+console.log(`${meta.length} yapı (${meta.filter((x) => x.model === 'erkek').length} yalnızca erkek, ${meta.filter((x) => x.model === 'kadin').length} yalnızca kadın)`);
+
+for (const model of MODELS) {
+  if (onlyModel && model !== onlyModel) continue;
+  await buildModel(model);
 }
 
-const scale = gmax.map((v, a) => (v - gmin[a]) / 65000);
-const offset = gmin.map((v, a) => v + 32500 * scale[a]);
+async function buildModel(model) {
+  const perLayer = Object.fromEntries(LAYERS.map((l) => [l, []]));
+  const gmin = [Infinity, Infinity, Infinity];
+  const gmax = [-Infinity, -Infinity, -Infinity];
 
-for (const [lod, budget] of Object.entries(LODS)) {
-  if (onlyLod && lod !== onlyLod) continue;
-  const lodDir = path.join(outDir, lod);
-  fs.mkdirSync(lodDir, { recursive: true });
-  console.log(`\n== ${lod} ==`);
-  let totalTris = 0;
-  for (const layer of LAYERS) {
-    const items = perLayer[layer];
-    const tris = items.reduce((s, it) => s + it.idx.length / 3, 0);
-    const ratio = Math.min(1, budget[layer] / tris);
-    const parts = items.map((it) => simplifyStructure(it, ratio));
-
-    // Katmanın tamamı üzerinde ortam gölgesi (kas araları, kaburga boşlukları vb. birbirini gölgeler)
-    const ao = await computeAO(parts, AO_RADIUS[layer]);
-
-    const header = { scale, offset, structures: [] };
-    const chunks = [];
-    let layerTris = 0;
-    let vBase = 0;
-    for (let k = 0; k < parts.length; k++) {
-      const { pos, nrm, idx } = parts[k];
-      const vc = pos.length / 3;
-      const q = new Int16Array(vc * 3);
-      for (let i = 0; i < vc * 3; i++) q[i] = Math.round((pos[i] - offset[i % 3]) / scale[i % 3]);
-      const n8 = new Int8Array(vc * 3);
-      for (let i = 0; i < vc * 3; i++) n8[i] = Math.round(nrm[i] * 127);
-      const a8 = ao.subarray(vBase, vBase + vc);
-      vBase += vc;
-      const i32 = vc > 65535;
-      const ind = i32 ? new Uint32Array(idx) : new Uint16Array(idx);
-      chunks.push(Buffer.from(q.buffer), pad(q.byteLength), Buffer.from(n8.buffer), pad(n8.byteLength), Buffer.from(a8), pad(a8.byteLength), Buffer.from(ind.buffer), pad(ind.byteLength));
-      const entry = { s: items[k].id, vc, ic: ind.length, i32 };
-      if (items[k].fiber) entry.f = items[k].fiber;
-      header.structures.push(entry);
-      layerTris += ind.length / 3;
+  console.log(`\n#### ${model}: yapılar okunuyor...`);
+  for (const [, st] of structures) {
+    const parts = st.parts[model];
+    if (parts.length === 0) continue;
+    const pos = [];
+    const idx = [];
+    for (const src of parts) {
+      const o = readPart(model, src);
+      const base = pos.length / 3;
+      for (const v of o.pos) pos.push(v);
+      for (const i of o.idx) idx.push(i + base);
     }
-
-    const json = Buffer.from(JSON.stringify(header), 'utf8');
-    const headerLen = Buffer.alloc(4);
-    headerLen.writeUInt32LE(json.length + pad(json.length).length);
-    const file = Buffer.concat([Buffer.from('ANT2'), headerLen, json, pad(json.length), ...chunks]);
-    fs.writeFileSync(path.join(lodDir, `${layer}.bin`), file);
-    totalTris += layerTris;
-    console.log(`${layer.padEnd(8)} ${String(items.length).padStart(4)} yapı  ${String(tris).padStart(8)} → ${String(layerTris).padStart(7)} üçgen  ${(file.length / 1024 / 1024).toFixed(2)} MB`);
+    for (let i = 0; i < pos.length; i += 3) {
+      for (let a = 0; a < 3; a++) {
+        gmin[a] = Math.min(gmin[a], pos[i + a]);
+        gmax[a] = Math.max(gmax[a], pos[i + a]);
+      }
+    }
+    const p32 = new Float32Array(pos);
+    perLayer[st.meta.layer].push({ id: st.id, pos: p32, idx: new Uint32Array(idx), fiber: st.meta.kind === 'muscle' ? principalAxis(p32) : undefined });
   }
-  console.log(`Toplam ${totalTris} üçgen`);
+
+  const scale = gmax.map((v, a) => (v - gmin[a]) / 65000);
+  const offset = gmin.map((v, a) => v + 32500 * scale[a]);
+
+  for (const [lod, budget] of Object.entries(LODS)) {
+    if (onlyLod && lod !== onlyLod) continue;
+    const lodDir = path.join(outDir, model, lod);
+    fs.mkdirSync(lodDir, { recursive: true });
+    console.log(`\n== ${model} / ${lod} ==`);
+    let totalTris = 0;
+    for (const layer of LAYERS) {
+      const items = perLayer[layer];
+      const tris = items.reduce((s, it) => s + it.idx.length / 3, 0);
+      const ratio = Math.min(1, budget[layer] / tris);
+      const parts = items.map((it) => simplifyStructure(it, ratio));
+
+      // Katmanın tamamı üzerinde ortam gölgesi (kas araları, kaburga boşlukları vb. birbirini gölgeler)
+      const ao = await computeAO(parts, AO_RADIUS[layer]);
+
+      const header = { scale, offset, structures: [] };
+      const chunks = [];
+      let layerTris = 0;
+      let vBase = 0;
+      for (let k = 0; k < parts.length; k++) {
+        const { pos, nrm, idx } = parts[k];
+        const vc = pos.length / 3;
+        const q = new Int16Array(vc * 3);
+        for (let i = 0; i < vc * 3; i++) q[i] = Math.round((pos[i] - offset[i % 3]) / scale[i % 3]);
+        const n8 = new Int8Array(vc * 3);
+        for (let i = 0; i < vc * 3; i++) n8[i] = Math.round(nrm[i] * 127);
+        const a8 = ao.subarray(vBase, vBase + vc);
+        vBase += vc;
+        const i32 = vc > 65535;
+        const ind = i32 ? new Uint32Array(idx) : new Uint16Array(idx);
+        chunks.push(Buffer.from(q.buffer), pad(q.byteLength), Buffer.from(n8.buffer), pad(n8.byteLength), Buffer.from(a8), pad(a8.byteLength), Buffer.from(ind.buffer), pad(ind.byteLength));
+        const entry = { s: items[k].id, vc, ic: ind.length, i32 };
+        if (items[k].fiber) entry.f = items[k].fiber;
+        header.structures.push(entry);
+        layerTris += ind.length / 3;
+      }
+
+      const json = Buffer.from(JSON.stringify(header), 'utf8');
+      const headerLen = Buffer.alloc(4);
+      headerLen.writeUInt32LE(json.length + pad(json.length).length);
+      const file = Buffer.concat([Buffer.from('ANT2'), headerLen, json, pad(json.length), ...chunks]);
+      fs.writeFileSync(path.join(lodDir, `${layer}.bin`), file);
+      totalTris += layerTris;
+      console.log(`${layer.padEnd(8)} ${String(items.length).padStart(4)} yapı  ${String(tris).padStart(8)} → ${String(layerTris).padStart(7)} üçgen  ${(file.length / 1024 / 1024).toFixed(2)} MB`);
+    }
+    console.log(`Toplam ${totalTris} üçgen`);
+  }
 }
 
 /** Yapıyı oranına göre sadeleştirir; yumuşak normalleri hesaplar */

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { AnatomyModel } from '@/data/anatomyTypes';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 export type Department = 'ebelik' | 'hemsirelik' | 'diger';
@@ -27,17 +28,20 @@ type Settings = {
   department: Department | null;
   /** 3D model detayı; yüksek detayda kapanan cihazlarda otomatik olarak standarda iner */
   modelDetail: ModelDetail;
+  /** 3D beden (kadın/erkek); seçilmediyse bölüme göre (ebelikte kadın) */
+  bodyModel: AnatomyModel | null;
   /** Akademisyen modu: içerik üzerinde "Düzenleme talep et" düğmeleri görünür */
   reviewerMode: boolean;
 };
 
-const DEFAULTS: Settings = { department: null, modelDetail: 'yuksek', reviewerMode: false };
+const DEFAULTS: Settings = { department: null, modelDetail: 'yuksek', bodyModel: null, reviewerMode: false };
 const STORAGE_KEY = 'anatomi-settings-v1';
 
 type SettingsContextValue = Settings & {
   setDepartment: (d: Department) => void;
   setReviewerMode: (on: boolean) => void;
   setModelDetail: (d: ModelDetail) => void;
+  setBodyModel: (m: AnatomyModel) => void;
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -63,8 +67,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setDepartment = useCallback((department: Department) => setSettings((s) => ({ ...s, department })), []);
   const setReviewerMode = useCallback((reviewerMode: boolean) => setSettings((s) => ({ ...s, reviewerMode })), []);
   const setModelDetail = useCallback((modelDetail: ModelDetail) => setSettings((s) => ({ ...s, modelDetail })), []);
+  const setBodyModel = useCallback((bodyModel: AnatomyModel) => setSettings((s) => ({ ...s, bodyModel })), []);
 
-  const value = useMemo(() => ({ ...settings, setDepartment, setReviewerMode, setModelDetail }), [settings, setDepartment, setReviewerMode, setModelDetail]);
+  const value = useMemo(
+    () => ({ ...settings, setDepartment, setReviewerMode, setModelDetail, setBodyModel }),
+    [settings, setDepartment, setReviewerMode, setModelDetail, setBodyModel],
+  );
 
   if (!ready) return null;
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

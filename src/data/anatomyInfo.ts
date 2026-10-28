@@ -1,6 +1,6 @@
 import type { IconName } from './types';
 import { anatomyStructures } from './anatomy3d';
-import type { AnatomyLayer, AnatomyStructure } from './anatomyTypes';
+import type { AnatomyLayer, AnatomyModel, AnatomyStructure } from './anatomyTypes';
 
 export const LAYERS: { id: AnatomyLayer; label: string; icon: IconName; color: string }[] = [
   { id: 'deri', label: 'Deri', icon: 'person-outline', color: '#D9A383' },
@@ -22,7 +22,11 @@ const KIND_KEYWORDS: Record<string, string> = {
   lung: 'akciğer solunum',
   kidney: 'böbrek',
   urinary: 'idrar',
-  genital: 'üreme',
+  genital: 'üreme genital',
+  ovary: 'yumurtalık over üreme',
+  ligament: 'bağ ligament',
+  breast: 'meme göğüs',
+  nipple: 'meme göğüs',
   gland: 'bez hormon',
   artery: 'arter atardamar damar',
   vein: 'ven toplardamar damar',
@@ -62,7 +66,10 @@ const ORGAN_TOPIC: Record<string, string> = {
   cartilage: 'solunum',
   membrane: 'solunum',
   gland: 'endokrin',
-  genital: 'erkek-ureme',
+  ovary: 'kadin-ureme',
+  ligament: 'kadin-ureme',
+  breast: 'meme',
+  nipple: 'meme',
   eye: 'duyu',
   iris: 'duyu',
   lens: 'duyu',
@@ -71,6 +78,7 @@ const ORGAN_TOPIC: Record<string, string> = {
 
 /** Yapının anlatıldığı ders konusu */
 export function topicForStructure(s: AnatomyStructure): string {
+  if (s.layer === 'organ' && s.kind === 'genital') return s.model === 'kadin' ? 'kadin-ureme' : 'erkek-ureme';
   if (s.layer === 'organ') return ORGAN_TOPIC[s.kind] ?? 'sindirim';
   if (s.layer === 'kas') return s.la.includes('levator ani') || s.la.includes('coccygeus') || s.la.includes('sphincter ani') ? 'pelvis' : 'kas';
   if (s.layer === 'iskelet') return s.la.startsWith('Discus') ? 'eklemler' : 'iskelet';
@@ -86,5 +94,8 @@ export function sideLabel(s: AnatomyStructure): string | null {
 export function getStructure(id: number): AnatomyStructure | undefined {
   return anatomyStructures[id];
 }
+
+/** Yapı bu modelde var mı */
+export const inModel = (s: AnatomyStructure, model: AnatomyModel) => !s.model || s.model === model;
 
 export { anatomyStructures };
